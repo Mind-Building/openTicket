@@ -1,0 +1,86 @@
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Old system (kept for reference)
+_obsolete/
+
+# Ticket templates
+storage/ticket_templates/
+storage/generated_tickets/
+storage/temp/
+
+# Vendor (Composer Dependencies)
+# Das vendor/ Verzeichnis wird vom Deployment-Script kopiert
+# Nicht ins Git - wird über composer install reproduziert
+vendor/
+
+# Frontend-Bibliotheken (libs/)
+# WICHTIG: libs/ SOLL ins Git (im Gegensatz zu vendor/)!
+# Enthält Bootstrap, Bootstrap Icons, Flatpickr etc.
+# Wird vom Deployment-Script mit kopiert
+
+# Database backups
+*.sql.gz
+*.sql.bak
+
+# ========================================
+# MULTI-CUSTOMER DEPLOYMENT
+# ========================================
+# Verhindert, dass Kunden-Installationen ins Git kommen
+
+# Kunden-Ordner
+/ticket_kunde*/
+*_backup_*/
+
+# Kunden-Daten (Datenbank-Dateien)
+/data/*.db
+/data/*.sqlite
+/data/*.sqlite3
+/data/backups/
+
+# ABER: Datenbank-Seeds und Schema SOLLEN ins Git (für Deployment)
+# database/ Ordner bleibt im Git!
+
+# Kunden-Uploads
+/public/uploads/**/*
+!/public/uploads/.gitkeep
+!/public/uploads/tickets/.gitkeep
+!/public/uploads/vouchers/.gitkeep
+!/public/uploads/seat_plans/.gitkeep
+
+# Deployment-Logs
+deploy_*.log
+cleanup.log
+
+
+# Lokale Kunden-Konfiguration fuer deploy_to_customer.bat
+deploy_customers.local.bat
+
+# Lokale Claude-Code-Einstellungen
+.claude/settings.local.json
+
+# Kunden-Importdateien (echte Saalplaene)
+_import/
+
+# PHPUnit-Cache
+.phpunit.cache/

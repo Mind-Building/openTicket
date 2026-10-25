@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer show *)",
+      "Bash(composer outdated *)",
+      "Bash(composer audit *)",
+      "Bash(/d/xampp/php/php.exe -r ' *)",
+      "Bash(/d/xampp/php/php.exe -l public/presales/sell.php)",
+      "Bash(/d/xampp/php/php.exe -l public/admin/sell.php)",
+      "Bash(d:/xampp/php/php.exe app/scripts/search_logs.php 1509 711)",
+      "Bash(rm -rf /tmp/logtest)",
+      "Bash(d:/xampp/php/php.exe -l public/api/ticket_download.php)",
+      "Bash(d:/xampp/php/php.exe -l public/admin/logs.php)",
+      "Bash(d:/xampp/php/php.exe -r ' *)",
+      "Bash(d:/xampp/php/php.exe -l public/admin/reservations.php)",
+      "Bash(d:/xampp/php/php.exe -l app/services/EmailService.php)",
+      "Bash(d:/xampp/php/php.exe vendor/bin/phpunit tests/Unit/Services/EmailServiceTemplateTest.php --no-coverage)",
+      "Bash(d:/xampp/php/php.exe vendor/bin/phpunit --no-coverage)",
+      "Bash(d:/xampp/php/php.exe -l public/presales/reservations.php)",
+      "Bash(d:/xampp/php/php.exe -l public/admin/reports_ticket_overview.php)",
+      "Bash(/d/xampp/php/php.exe -l public/admin/reservations.php)",
+      "Bash(/d/xampp/php/php.exe -l public/presales/reservations.php)",
+      "Bash(/d/xampp/php/php.exe -l public/api/order_details.php)",
+      "Bash(/d/xampp/php/php.exe -l public/admin/checkout_success.php)",
+      "Bash(ls app/models/)",
+      "Bash(ls app/Models/)",
+      "Bash(/d/xampp/php/php.exe -l app/services/LoggerService.php)",
+      "Bash(/d/xampp/php/php.exe vendor/bin/phpunit tests/Unit/Services/LoggerServiceTest.php --no-coverage)",
+      "Bash(/d/xampp/php/php.exe -l public/admin/vip_tickets.php)",
+      "Bash(D:/xampp/php/php.exe -l \"d:/xampp/htdocs/ticket2.0/public/api/admin_link_customer.php\")",
+      "Bash(D:/xampp/php/php.exe -l \"d:/xampp/htdocs/ticket2.0/public/admin/reservations.php\")",
+      "Bash(D:/xampp/php/php.exe -l \"d:/xampp/htdocs/ticket2.0/public/admin/reports_ticket_overview.php\")",
+      "Bash(echo \"=== exit $? ===\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

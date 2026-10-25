@@ -1,0 +1,9 @@
+# Logging Directory Protection
+# Prevent direct access to log files
+
+# Deny all direct access
+Order Deny,Allow
+Deny from all
+
+# Prevent directory listing
+Options -Indexes

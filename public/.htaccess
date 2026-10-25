@@ -1,0 +1,42 @@
+# Ticket System 2.0 - Apache Configuration (Public Directory)
+# ========================================
+# Konfiguration für das /public Verzeichnis
+# ========================================
+
+# Prevent directory listing
+Options -Indexes
+
+# Enable Rewrite Engine for this directory
+RewriteEngine On
+
+# Block known crawler bots (kein PHP-Aufruf, keine Session)
+RewriteCond %{HTTP_USER_AGENT} (PetalBot|bingbot|BingPreview|MicrosoftPreview|meta-externalagent|Amazonbot|Barkrowler) [NC]
+RewriteRule ^ - [F,L]
+
+RewriteBase /
+
+# Redirect old /public/... links (sent in emails before domain re-routing)
+# to the correct path without the /public prefix.
+RewriteRule ^public/(.*)$ /$1 [R=301,L,QSA]
+
+# If the request is for an actual file or directory, serve it directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+# Protect sensitive file types inside public/
+<FilesMatch "\.(env|sql|log|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

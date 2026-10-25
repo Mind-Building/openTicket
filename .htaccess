@@ -1,0 +1,73 @@
+# Ticket System 2.0 - Apache Configuration (Root Directory)
+# ========================================
+# Diese .htaccess leitet alle Anfragen zum /public Verzeichnis um
+# Zugriff: http://domain.de/tickets/ → public/index.php
+# ========================================
+
+# Enable Rewrite Engine
+RewriteEngine On
+
+# Blocked IPs (bekannte Angreifer)
+# 2026-04-09: curl-Scanner, 100% abuse confidence auf AbuseIPDB (487 Reports), FBW Networks Paris
+RewriteCond %{REMOTE_ADDR} ^185\.177\.72\.17$
+RewriteRule .* - [F,L]
+
+# WICHTIG: Pfad anpassen je nach Deployment-Umgebung
+# Lokal (XAMPP Unterverzeichnis):  RewriteBase /ticket2.0/
+# Produktion (Root-Domain):        RewriteBase /
+RewriteBase /ticket2.0/
+
+# Verhindere direkten Zugriff auf sensible Verzeichnisse
+RewriteRule ^(app|database|logging|storage|tests|vendor|docs)(/.*)?$ - [F,L]
+
+# Wenn die Anfrage bereits zu /public/ geht, durchlassen (verhindert Endlos-Schleife)
+RewriteCond %{REQUEST_URI} /public/
+RewriteRule ^(.*)$ - [L]
+
+# Leite Root-Zugriff (leerer Pfad) direkt zu public/index.php um
+RewriteRule ^$ public/index.php [L]
+
+# Leite index.php Anfragen zu public/index.php um
+RewriteRule ^index\.php$ public/index.php [L]
+
+# Leite alle anderen Anfragen zu /public/ um (wenn Datei/Verzeichnis nicht im Root existiert)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/$1 [L,QSA]
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Protect sensitive files
+# Apache 2.4+ syntax (mod_authz_core)
+<FilesMatch "\.(env|sql|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# PHP Settings (mod_php — skipped silently if using PHP-FPM)
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+

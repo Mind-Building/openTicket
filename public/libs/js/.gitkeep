@@ -1,0 +1,5 @@
+# Platzhalter für JavaScript-Bibliotheken
+# Benötigte Dateien:
+# - bootstrap.bundle.min.js (Bootstrap 5.3.x mit Popper.js)
+# - flatpickr.min.js (Flatpickr 4.6.x)
+# - flatpickr.de.js (Deutsche Lokalisierung für Flatpickr)

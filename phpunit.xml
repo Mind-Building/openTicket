@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="depends,defects"
+         requireCoverageMetadata="false"
+         beStrictAboutCoverageMetadata="false">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <!--
+            Test database connection. Override per-developer via shell export or
+            a local copy of phpunit.xml if defaults don't match the MySQL setup.
+            DB_NAME MUST contain "test" – tests/bootstrap.php enforces this so a
+            misconfigured value can never clobber a real ticket database.
+        -->
+        <env name="DB_HOST" value="localhost"/>
+        <env name="DB_NAME" value="ticket_test"/>
+        <env name="DB_USER" value="root"/>
+        <env name="DB_PASS" value=""/>
+        <env name="APP_SECRET" value="test-secret-for-phpunit-runs"/>
+    </php>
+</phpunit>

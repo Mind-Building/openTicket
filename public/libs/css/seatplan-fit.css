@@ -1,0 +1,96 @@
+/*
+ * Seat plan that scales its seats to the available width.
+ *
+ * Usage: <div class="seatplan-container seatplan-fit" style="--n: 51">, where --n is the
+ * slot count of the widest row (App\Helpers\SeatPlanLayout::maxSlots()). Seats and distances
+ * get one shared size between --slot-min and --slot-max, so seat numbers line up across rows.
+ * Below --slot-min the plan scrolls horizontally. --zoom is set by libs/js/seatplan-zoom.js.
+ */
+/* Double class: the pages define .seatplan-container (overflow-x: visible) after this file */
+.seatplan-fit,
+.seatplan-container.seatplan-fit {
+    container-type: inline-size;
+    overflow-x: auto;
+}
+.seatplan-fit {
+    --n: 20;
+    --zoom: 1;
+    --gap: 3px;
+    --label: 64px;
+    --slot-min: 18px;
+    --slot-max: 40px;
+    /* Resolved on the children, so 100cqw is the content width of this container */
+    /* Zooming out (< 100 %) also lowers the minimum, so the whole hall can be shown on narrow screens */
+    --slot: clamp(
+        calc(var(--slot-min) * min(var(--zoom), 1)),
+        calc(((100cqw - var(--label) - var(--gap)) / var(--n) - var(--gap)) * max(var(--zoom), 1)),
+        calc(var(--slot-max) * var(--zoom))
+    );
+}
+
+.seatplan-fit .seatplan-row {
+    gap: var(--gap);
+    margin-bottom: max(3px, calc(var(--slot) * 0.15));
+    width: max-content;
+    min-width: 100%;
+}
+
+.seatplan-fit .seatplan-elements {
+    gap: var(--gap);
+    flex: 0 0 auto;
+}
+
+.seatplan-fit .row-label {
+    width: var(--label);
+    min-width: var(--label);
+    flex: 0 0 var(--label);
+    padding-right: 4px;
+    font-size: 0.8rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.seatplan-fit .seatplan-row :is(.seat-element, .distance-element, .seat-el, .distance-el) {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--slot);
+    min-width: var(--slot);
+    height: var(--slot);
+    flex: 0 0 var(--slot);
+    padding: 0;
+    line-height: 1;
+    /* Seat numbers at least 10px at 100 %; only zooming out below 100 % makes them smaller */
+    font-size: clamp(calc(10px * min(var(--zoom), 1)), calc(var(--slot) * 0.5), 14px);
+    /* Border = category colour: thick enough to stay recognisable on small seats */
+    border-width: clamp(2px, calc(var(--slot) * 0.15), 5px) !important;
+    white-space: nowrap;
+}
+
+/* Thin white ring between category border and seat fill, so the category colour stands out
+   against the green/red seat colour */
+.seatplan-fit .seatplan-row :is(.seat-element, .seat-el) {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+/* Icon + number has to fit into one slot */
+.seatplan-fit .seatplan-row .wheelchair-seat {
+    font-size: clamp(7px, calc(var(--slot) * 0.3), 11px);
+    gap: 1px;
+}
+
+/* Zoom toolbar (inserted by seatplan-zoom.js) */
+.seatplan-zoom {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+.seatplan-zoom .zoom-value {
+    min-width: 3.2rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
