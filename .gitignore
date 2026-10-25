@@ -84,3 +84,6 @@ _import/
 
 # PHPUnit-Cache
 .phpunit.cache/
+
+# /brag Launch-Videos
+brag-output*/
