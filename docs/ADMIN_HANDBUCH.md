@@ -526,6 +526,10 @@ VIP-Tickets erscheinen in der normalen Reservierungsliste mit dem Status-Badge *
 
 > VIP-Karten erscheinen in den Berichten und in der Sitzplan-Belegung wie reguläre Tickets, sind aber als VIP gekennzeichnet.
 
+### 8.3 Text auf dem VIP-Ticket
+
+Auf VIP-Tickets steht anstelle des Preises standardmäßig **„VIP"**. Der Text lässt sich je Installation unter *Einstellungen → Grundeinstellung → Tickets → Text auf VIP-Tickets* ändern (z. B. „Ehrenkarte", „Freikarte", max. 30 Zeichen). Leeres Feld = „VIP". Die Änderung gilt für alle VIP-Tickets, die danach erzeugt oder heruntergeladen werden.
+
 ---
 
 ## 9. Zahlungsanforderungen
