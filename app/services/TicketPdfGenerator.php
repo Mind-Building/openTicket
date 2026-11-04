@@ -6,6 +6,7 @@
 
 namespace App\Services;
 
+use App\Core\Config;
 use App\Helpers\TicketCode;
 use App\Helpers\TicketPrice;
 use App\Models\Event;
@@ -631,7 +632,9 @@ class TicketPdfGenerator
             // Wheelchair companion ticket – always free; (B) = Begleitperson
             $priceFormatted = '0 € (B)';
         } elseif ((int)($reservation['status_id'] ?? 0) === 11) {
-            $priceFormatted = 'VIP';
+            // Text im Preisfeld je Installation einstellbar (Einstellungen → Grundeinstellung)
+            $vipLabel = trim((string)Config::get('vip_ticket_label', 'VIP'));
+            $priceFormatted = $vipLabel !== '' ? $vipLabel : 'VIP';
             $priceType = '';
         } else {
             $priceFormatted = number_format($ticketPrice['price'], 2, ',', '.') . ' €';

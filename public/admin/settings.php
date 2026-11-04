@@ -497,6 +497,17 @@ $content = '
                                        placeholder="PIN zum Schutz der Abendkasse-Funktion" autocomplete="new-password">
                                 <small class="form-text text-muted">Wird im Vorverkauf bei der Abendkasse-Funktion abgefragt. Leer = Funktion gesperrt.</small>
                             </div>
+
+                            <hr class="my-4">
+                            <h6 class="mb-3">Tickets</h6>
+
+                            <div class="mb-3">
+                                <label for="config_vip_ticket_label" class="form-label">Text auf VIP-Tickets</label>
+                                <input type="text" class="form-control" id="config_vip_ticket_label" name="config_vip_ticket_label"
+                                       value="' . htmlspecialchars($configArray['vip_ticket_label']['value'] ?? 'VIP') . '"
+                                       maxlength="30" placeholder="VIP">
+                                <small class="form-text text-muted">Erscheint auf VIP-Tickets anstelle des Preises (z.&nbsp;B. „Ehrenkarte“, „Freikarte“). Leer = „VIP“.</small>
+                            </div>
                         </div>
                     </div>
                 </div>

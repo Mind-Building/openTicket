@@ -374,12 +374,27 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
                         <div id="seatplan-container">';
 
     if (!empty($seatPlan)) {
-        $seatPlanHtml = '<div class="seatplan-container">';
+        // Darstellung wie admin/sell.php (Größenanpassung, Zoom-Regler, Legende)
+        $seatPlanHtml = '<div class="seatplan-container seatplan-fit" style="--n: ' . \App\Helpers\SeatPlanLayout::maxSlots($seatPlan ?? []) . '">';
+
+        $categoryColor = function ($categoryId) use ($categories): string {
+            if ($categoryId) {
+                foreach ($categories as $cat) {
+                    if ($cat['id'] == $categoryId) {
+                        return $cat['color'] ?: '#0d6efd';
+                    }
+                }
+            }
+            return '#0d6efd';
+        };
+
         foreach ($seatPlan as $row) {
             if ($row['type'] === 'row' && isset($row['no'])) {
                 if ($row['no'] === 0) {
-                    $seatPlanHtml .= '<div class="seatplan-row" style="width:100%;">
-                        <div class="stage-element" style="width:100%;flex:1;"><i class="bi bi-music-note-beamed"></i> BÜHNE</div>
+                    $seatPlanHtml .= '<div class="seatplan-row" style="width: 100%;">
+                        <div class="stage-element" style="width: 100%; flex: 1;">
+                            <i class="bi bi-music-note-beamed"></i> BÜHNE
+                        </div>
                     </div>';
                 } else {
                     $seatPlanHtml .= '<div class="seatplan-row">
@@ -387,90 +402,76 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
                         <div class="seatplan-elements">';
 
                     foreach ($row['content'] as $element) {
-                        $seatId     = '';
-                        $isReserved = false;
+                        $bgColor = $categoryColor($element['category'] ?? null);
 
                         if ($element['type'] === 'seat') {
                             $seatId     = 'seat_' . $row['no'] . '_' . $element['no'];
                             $isReserved = isset($reservedSeats[$seatId]);
-                        } elseif ($element['type'] === 'table') {
-                            $seatId = 'table_' . $element['no'];
-                        }
-
-                        $category = null;
-                        if (!empty($element['category'])) {
-                            foreach ($categories as $cat) {
-                                if ($cat['id'] == $element['category']) { $category = $cat; break; }
-                            }
-                        }
-                        $bgColor = $category ? ($category['color'] ?: '#0d6efd') : '#0d6efd';
-
-                        if ($element['type'] === 'seat') {
                             $seatPlanHtml .= '<span class="seat-element ' . ($isReserved ? 'reserved' : '') . '"
-                                data-seat-id="' . htmlspecialchars($seatId) . '"
-                                data-row="' . $row['no'] . '"
-                                data-seat="' . $element['no'] . '"
-                                data-category="' . ($element['category'] ?? '') . '"
-                                style="border-color:' . $bgColor . ';border-width:1px;background-color:' . ($isReserved ? '#dc3545' : '#28a745') . ';color:white;"
-                                onclick="' . ($isReserved ? '' : 'toggleSeat(this)') . '"
-                                title="' . ($isReserved ? 'Reserviert' : 'Verfügbar') . '">
+                                  data-seat-id="' . htmlspecialchars($seatId) . '"
+                                  data-row="' . $row['no'] . '"
+                                  data-seat="' . $element['no'] . '"
+                                  data-category="' . ($element['category'] ?? '') . '"
+                                  style="border-color: ' . $bgColor . '; background-color: ' . ($isReserved ? '#dc3545' : '#28a745') . '; color: white;"
+                                  onclick="' . ($isReserved ? '' : 'toggleSeat(this)') . '"
+                                  title="' . ($isReserved ? 'Reserviert' : 'Verfügbar') . '">
                                 ' . $element['no'] . '
                             </span>';
+                        } elseif ($element['type'] === 'wheelchair') {
+                            $seatId     = 'wheelchair_' . $row['no'] . '_' . $element['no'];
+                            $isReserved = isset($reservedSeats[$seatId]);
+                            $seatPlanHtml .= '<span class="seat-element wheelchair-seat ' . ($isReserved ? 'reserved' : '') . '"
+                                  data-seat-id="' . htmlspecialchars($seatId) . '"
+                                  data-row="' . $row['no'] . '"
+                                  data-seat="' . $element['no'] . '"
+                                  data-category="' . ($element['category'] ?? '') . '"
+                                  style="border-color: ' . $bgColor . '; background-color: ' . ($isReserved ? '#dc3545' : '#28a745') . '; color: white;"
+                                  onclick="' . ($isReserved ? '' : 'toggleSeat(this)') . '"
+                                  title="' . ($isReserved ? 'Rollstuhlplatz reserviert' : 'Rollstuhlplatz') . '">
+                                <i class="bi bi-person-wheelchair"></i> ' . $element['no'] . '
+                            </span>';
                         } elseif ($element['type'] === 'table') {
-                            $tableSeats   = $element['seats'] ?? [];
-                            $seatPlanHtml .= '<div class="table-with-seats" style="display:inline-flex;flex-direction:column;align-items:center;gap:.25rem;">';
-
-                            $renderTableSeats = function(array $seats) use ($reservedSeats, $categories, $element, $row, &$seatPlanHtml) {
+                            $tableSeats = $element['seats'] ?? [];
+                            $renderTableSeats = function (array $seats, string $extraStyle = '') use ($reservedSeats, $categoryColor, $element, $row): string {
+                                $html = '';
                                 foreach ($seats as $seat) {
-                                    $tsId    = 'tableseat_' . $element['no'] . '_' . $seat['number'];
-                                    $isRes   = isset($reservedSeats[$tsId]);
-                                    $tCat    = null;
-                                    if ($seat['category']) {
-                                        foreach ($categories as $cat) {
-                                            if ($cat['id'] == $seat['category']) { $tCat = $cat; break; }
-                                        }
-                                    }
-                                    $tColor = $tCat ? ($tCat['color'] ?: '#0d6efd') : '#0d6efd';
-                                    $seatPlanHtml .= '<span class="seat-element ' . ($isRes ? 'reserved' : '') . '"
-                                        data-seat-id="' . htmlspecialchars($tsId) . '"
-                                        data-row="' . $row['no'] . '"
-                                        data-seat="' . $seat['number'] . '"
-                                        data-table="' . $element['no'] . '"
-                                        data-category="' . ($seat['category'] ?? '') . '"
-                                        style="border-color:' . $tColor . ';border-width:1px;background-color:' . ($isRes ? '#dc3545' : '#28a745') . ';color:white;font-size:.75rem;padding:.25rem .5rem;"
-                                        onclick="' . ($isRes ? '' : 'toggleSeat(this)') . '"
-                                        title="' . ($isRes ? 'Reserviert' : 'Tisch ' . $element['no'] . ', Platz ' . $seat['number']) . '">
+                                    $tsId  = 'tableseat_' . $element['no'] . '_' . $seat['number'];
+                                    $isRes = isset($reservedSeats[$tsId]);
+                                    $html .= '<span class="seat-element ' . ($isRes ? 'reserved' : '') . '"
+                                          data-seat-id="' . htmlspecialchars($tsId) . '"
+                                          data-row="' . $row['no'] . '"
+                                          data-seat="' . $seat['number'] . '"
+                                          data-table="' . $element['no'] . '"
+                                          data-category="' . ($seat['category'] ?? '') . '"
+                                          style="border-color: ' . $categoryColor($seat['category'] ?? null) . '; background-color: ' . ($isRes ? '#dc3545' : '#28a745') . '; color: white;' . $extraStyle . '"
+                                          onclick="' . ($isRes ? '' : 'toggleSeat(this)') . '"
+                                          title="' . ($isRes ? 'Reserviert' : 'Tisch ' . $element['no'] . ', Platz ' . $seat['number']) . '">
                                         ' . $seat['number'] . '
                                     </span>';
                                 }
+                                return $html;
                             };
+                            $sideStyle = ' font-size: 0.75rem; padding: 0.25rem 0.5rem;';
 
+                            $seatPlanHtml .= '<div class="table-with-seats" style="display: inline-flex; flex-direction: column; align-items: center; gap: 0.25rem;">';
                             if (!empty($tableSeats['front'])) {
-                                $seatPlanHtml .= '<div style="display:flex;gap:.25rem;">';
-                                $renderTableSeats($tableSeats['front']);
-                                $seatPlanHtml .= '</div>';
+                                $seatPlanHtml .= '<div style="display: flex; gap: 0.25rem;">' . $renderTableSeats($tableSeats['front']) . '</div>';
                             }
-                            $seatPlanHtml .= '<div style="display:flex;align-items:center;gap:.25rem;">';
+                            $seatPlanHtml .= '<div style="display: flex; align-items: center; gap: 0.25rem;">';
                             if (!empty($tableSeats['left'])) {
-                                $seatPlanHtml .= '<div style="display:flex;flex-direction:column;gap:.25rem;">';
-                                $renderTableSeats($tableSeats['left']);
-                                $seatPlanHtml .= '</div>';
+                                $seatPlanHtml .= '<div style="display: flex; flex-direction: column; gap: 0.25rem;">' . $renderTableSeats($tableSeats['left'], $sideStyle) . '</div>';
                             }
-                            $seatPlanHtml .= '<span class="table-element" style="font-size:.9rem;padding:.5rem;background-color:#6c757d;color:white;border:1px solid #5a6268;">Tisch ' . $element['no'] . '</span>';
+                            $seatPlanHtml .= '<span class="table-element" style="font-size: 0.9rem; padding: 0.5rem; background-color: #6c757d; color: white; border: 1px solid #5a6268;">Tisch ' . $element['no'] . '</span>';
                             if (!empty($tableSeats['right'])) {
-                                $seatPlanHtml .= '<div style="display:flex;flex-direction:column;gap:.25rem;">';
-                                $renderTableSeats($tableSeats['right']);
-                                $seatPlanHtml .= '</div>';
+                                $seatPlanHtml .= '<div style="display: flex; flex-direction: column; gap: 0.25rem;">' . $renderTableSeats($tableSeats['right'], $sideStyle) . '</div>';
                             }
                             $seatPlanHtml .= '</div>';
                             if (!empty($tableSeats['back'])) {
-                                $seatPlanHtml .= '<div style="display:flex;gap:.25rem;">';
-                                $renderTableSeats($tableSeats['back']);
-                                $seatPlanHtml .= '</div>';
+                                $seatPlanHtml .= '<div style="display: flex; gap: 0.25rem;">' . $renderTableSeats($tableSeats['back']) . '</div>';
                             }
                             $seatPlanHtml .= '</div>';
                         } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element) . '>' . (empty($element['stairs']) ? (int)($element['no'] ?? 0) : '') . '</span>';
+                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element) . '>&nbsp;</span>';
                         }
                     }
                     $seatPlanHtml .= '</div></div>';
@@ -478,6 +479,27 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
             }
         }
         $seatPlanHtml .= '</div>';
+
+        // Legende (wie admin/sell.php)
+        $legendHtml = '<div class="seatplan-legend mt-3">'
+            . '<div class="legend-item"><span class="legend-box" style="background:#28a745;"></span> Verfügbar</div>'
+            . '<div class="legend-item"><span class="legend-box" style="background:#ffc107;"></span> Ausgewählt</div>'
+            . '<div class="legend-item"><span class="legend-box" style="background:#dc3545;"></span> Reserviert</div>';
+        $legendTypes = seatplanElementTypes($seatPlan);
+        if (isset($legendTypes['stairs'])) {
+            $legendHtml .= '<div class="legend-item"><span class="legend-box" style="background:#fff;border:2px solid #000;"></span> Treppe</div>';
+        }
+        foreach ($categories as $cat) {
+            if (!empty($cat['color'])) {
+                $legendHtml .= '<div class="legend-item">'
+                    . '<span class="legend-box" style="background:transparent;border:4px solid ' . htmlspecialchars($cat['color']) . ';"></span> '
+                    . htmlspecialchars($cat['name'])
+                    . '</div>';
+            }
+        }
+        $legendHtml .= '</div>';
+        $seatPlanHtml .= $legendHtml;
+
         $content .= $seatPlanHtml;
     } else {
         $content .= '<p class="text-muted text-center">Kein Sitzplan vorhanden.</p>';
@@ -523,7 +545,8 @@ elseif ($step === 'customer' && !empty($selectedSeats)) {
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i>
                 Die VIP-Karten sind <strong>kostenlos</strong>. Der Empfänger bekommt eine E-Mail mit dem direkten Download-Link.
-                Auf dem Ticket erscheint <strong>„VIP"</strong> anstelle eines Preises.
+                Auf dem Ticket erscheint <strong>„' . htmlspecialchars(trim((string)Config::get('vip_ticket_label', 'VIP')) ?: 'VIP') . '"</strong> anstelle eines Preises
+                (änderbar unter <a href="' . url('admin/settings.php') . '">Einstellungen</a>).
             </div>
             <form method="POST" id="vip-form">
                 ' . \App\Core\Csrf::field() . '
@@ -626,28 +649,29 @@ elseif ($step === 'customer' && !empty($selectedSeats)) {
 // ─── CSS + JS ─────────────────────────────────────────────────────────────────
 $additionalCss = '
 <link rel="stylesheet" href="' . url('libs/css/flatpickr.min.css') . '">
+<link rel="stylesheet" href="' . assetUrl('libs/css/seatplan-fit.css') . '">
+<script src="' . assetUrl('libs/js/seatplan-zoom.js') . '" defer></script>
 <style>
-.seatplan-container { background:#f8f9fa; padding:1rem; border-radius:.5rem; margin:1rem 0; width:100%; overflow-x:auto; }
+/* Sitzplan-Darstellung wie admin/sell.php */
+.seatplan-container { background:#f8f9fa; padding:1rem; border-radius:.5rem; margin:1rem 0; width:100%; overflow-x:visible; }
 .seatplan-row { display:flex; align-items:center; margin-bottom:.5rem; gap:.25rem; }
 .row-label { min-width:60px; font-weight:bold; text-align:right; font-size:.85rem; }
-.seatplan-elements { display:flex; flex-wrap:nowrap; gap:.25rem; flex:1; }
+.seatplan-elements { display:flex; flex-wrap:nowrap; gap:.25rem; flex:1; overflow-x:visible; }
 .seat-element, .table-element, .distance-element, .stage-element {
     padding:.25rem .4rem; border-radius:.2rem; cursor:pointer; transition:all .2s;
-    user-select:none; border:4px solid transparent; font-size:.75rem; min-width:28px; text-align:center;
+    user-select:none; border:4px solid transparent; font-size:.75rem; min-width:28px; text-align:center; white-space:nowrap;
 }
-.distance-element { background:#6c757d!important; color:white!important; border:1px solid #6c757d!important; cursor:not-allowed!important; width:28px; }
+.seatplan-legend { display:flex; gap:1rem; flex-wrap:wrap; align-items:center; padding:.5rem 0; }
+.seatplan-legend .legend-item { display:flex; align-items:center; gap:.4rem; font-size:.85rem; }
+.seatplan-legend .legend-box { display:inline-block; width:22px; height:22px; border-radius:.2rem; border:1px solid rgba(0,0,0,.15); flex-shrink:0; }
+.distance-element { background:#6c757d!important; color:white!important; border:1px solid #6c757d!important; cursor:not-allowed!important; pointer-events:auto; width:28px; min-width:28px; flex-shrink:0; }
+.distance-element:hover { transform:none!important; box-shadow:none!important; }
 .table-element { background:#6c757d!important; color:white!important; border:1px solid #5a6268!important; }
 .stage-element { background:#212529!important; color:white!important; width:100%; padding:.75rem 1rem; font-size:1rem; font-weight:bold; text-align:center; border:none!important; cursor:default; margin:.5rem 0; }
 .seat-element { background:#28a745; color:white; }
 .seat-element:hover { transform:scale(1.05); box-shadow:0 2px 4px rgba(0,0,0,.2); }
 .seat-element.reserved { background:#dc3545; color:white; border-color:#dc3545; cursor:not-allowed; }
 .seat-element.selected { background:#ffc107; color:#212529; }
-/* Seats and distances share one fixed slot width so seat numbers line up across rows */
-.seatplan-row .seat-element, .seatplan-row .distance-element {
-    display: inline-block; box-sizing: border-box;
-    width: 2.5rem; min-width: 2.5rem; flex: 0 0 2.5rem;
-    padding-left: 0; padding-right: 0;
-}
 </style>';
 
 $additionalJs = <<<JS
@@ -836,6 +860,9 @@ function formatSeatId(seatId) {
     // tableseat_3_5 → Tisch 3, Platz 5
     var t = seatId.match(/^tableseat_(\d+)_(\d+)$/);
     if (t) return 'Tisch ' + t[1] + ', Platz ' + t[2];
+    // wheelchair_4_3 → Reihe 4, Rollstuhlplatz 3
+    var w = seatId.match(/^wheelchair_(\d+)_(\d+)$/);
+    if (w) return 'Reihe ' + w[1] + ', Rollstuhlplatz ' + w[2];
     return seatId;
 }
 

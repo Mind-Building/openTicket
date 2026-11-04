@@ -220,7 +220,8 @@ $content = '
     </div>
     
     <div class="col-md-6">
-        <div class="card">
+        <!-- Sticky: Vorschau bleibt beim Scrollen durch lange Platzhalter-Listen sichtbar -->
+        <div class="card" style="position: sticky; top: 1rem; z-index: 1;">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Live-Vorschau</h5>
                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updatePreview()" title="Vorschau aktualisieren">
@@ -231,7 +232,7 @@ $content = '
                 ' . ($event['ticket_pdf_template'] ? '
                 <div id="preview-container" style="position: relative; min-height: 400px; background: #f0f0f0;">
                     <iframe id="preview-iframe" src="' . url('api/ticket_preview.php?event_id=' . $eventId) . '" 
-                            style="width: 100%; height: 600px; border: none;"></iframe>
+                            style="width: 100%; height: min(600px, calc(100vh - 6rem)); border: none;"></iframe>
                 </div>
                 ' : '
                 <div class="p-4 text-center text-muted">
