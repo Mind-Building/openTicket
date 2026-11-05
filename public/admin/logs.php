@@ -2,10 +2,48 @@
 require_once __DIR__ . '/../../app/bootstrap.php';
 
 use App\Core\Auth;
+use App\Services\LogCleanupService;
+use App\Services\LoggerService;
 
 Auth::requireAdmin();
 
 $logDir = __DIR__ . '/../../logging';
+
+// --- Logs aufräumen (Vorschau per GET ?cleanup=…, Ausführen per POST) ---
+$cleanupModes = [
+    LogCleanupService::MODE_INACTIVE => 'Logs von inaktiven Veranstaltungen löschen',
+    LogCleanupService::MODE_OLDER    => 'Logs älter als ' . LogCleanupService::MAX_AGE_MONTHS . ' Monate löschen',
+];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_run'])) {
+    $runMode = (string)$_POST['cleanup_run'];
+    if (!\App\Core\Csrf::validatePost()) {
+        http_response_code(403);
+        exit('Ungültiges CSRF-Token.');
+    }
+    try {
+        if (!isset($cleanupModes[$runMode])) {
+            throw new \InvalidArgumentException('Unbekannte Aufräum-Aktion.');
+        }
+        $res = (new LogCleanupService($logDir))->execute($runMode, date('Y-m-d'));
+        LoggerService::logAdmin('logs_cleanup', [
+            'admin_id'        => (string)Auth::id(),
+            'mode'            => $runMode,
+            'removed_entries' => $res['removed_entries'],
+            'deleted_files'   => $res['deleted_files'],
+            'rewritten_files' => $res['rewritten_files'],
+        ]);
+        $_SESSION['logs_cleanup_flash'] = ['success',
+            $res['removed_entries'] . ' Log-Einträge gelöscht (' . $res['deleted_files'] . ' Dateien entfernt, '
+            . $res['rewritten_files'] . ' Dateien bereinigt).'];
+    } catch (\Throwable $e) {
+        $_SESSION['logs_cleanup_flash'] = ['danger', 'Aufräumen fehlgeschlagen: ' . $e->getMessage()];
+    }
+    header('Location: ' . url('admin/logs.php'));
+    exit;
+}
+$cleanupFlash = $_SESSION['logs_cleanup_flash'] ?? null;
+unset($_SESSION['logs_cleanup_flash']);
+$cleanupPreviewMode = isset($cleanupModes[$_GET['cleanup'] ?? '']) ? $_GET['cleanup'] : null;
 
 // --- Discover available log files ---
 $logFiles = glob($logDir . '/*.log') ?: [];
@@ -790,13 +828,79 @@ $funnelCardHtml = '
     </div>
 </div>';
 
+// --- Logs aufräumen: Auswahl, Vorschau, Bestätigung ---
+$cleanupHtml = '';
+if ($cleanupFlash) {
+    $cleanupHtml .= '<div class="alert alert-' . htmlspecialchars($cleanupFlash[0]) . ' alert-dismissible fade show">'
+        . htmlspecialchars($cleanupFlash[1])
+        . '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+}
+$cleanupInfo = '<p class="small text-muted mb-2">Einträge von <strong>aktiven Veranstaltungen</strong> werden nie gelöscht '
+    . '(Zuordnung über Veranstaltung bzw. Reservierung im Log-Eintrag). Die Logs von heute bleiben immer unverändert.</p>';
+if ($cleanupPreviewMode !== null) {
+    try {
+        $plan = (new LogCleanupService($logDir))->plan($cleanupPreviewMode, date('Y-m-d'));
+        $planError = null;
+    } catch (\Throwable $e) {
+        $plan = null;
+        $planError = $e->getMessage();
+    }
+    $modeHint = $cleanupPreviewMode === LogCleanupService::MODE_INACTIVE
+        ? 'Gelöscht werden alle Einträge, die zu einer inaktiven oder gelöschten Veranstaltung gehören. Einträge ohne Veranstaltungsbezug (z.&nbsp;B. Logins) bleiben erhalten.'
+        : 'Gelöscht werden alle Einträge vor dem ' . date('d.m.Y', strtotime(LogCleanupService::cutoffDate(date('Y-m-d')))) . ' &ndash; außer Einträgen aktiver Veranstaltungen.';
+
+    $cleanupHtml .= '<div class="card border-danger mb-4">'
+        . '<div class="card-header bg-danger bg-opacity-10 fw-bold"><i class="bi bi-trash3 me-2"></i>Vorschau: ' . htmlspecialchars($cleanupModes[$cleanupPreviewMode]) . '</div>'
+        . '<div class="card-body">'
+        . '<p class="mb-2">' . $modeHint . '</p>' . $cleanupInfo;
+    if ($planError !== null) {
+        $cleanupHtml .= '<div class="alert alert-danger mb-0">Vorschau fehlgeschlagen: ' . htmlspecialchars($planError) . '</div>';
+    } elseif ($plan['removed_entries'] === 0) {
+        $cleanupHtml .= '<div class="alert alert-success mb-3">Es gibt nichts zu löschen.</div>'
+            . '<a href="' . url('admin/logs.php') . '" class="btn btn-outline-secondary btn-sm">Zurück</a>';
+    } else {
+        $fileRows = '';
+        foreach ($plan['files'] as $f) {
+            $fileRows .= '<tr><td>' . htmlspecialchars($f['file']) . '</td>'
+                . '<td class="text-end">' . $f['removed'] . ' / ' . $f['total'] . '</td>'
+                . '<td>' . ($f['action'] === 'delete' ? '<span class="badge bg-danger">Datei löschen</span>' : '<span class="badge bg-warning text-dark">Einträge entfernen</span>') . '</td></tr>';
+        }
+        $cleanupHtml .= '<p class="fw-semibold">' . $plan['removed_entries'] . ' Einträge in ' . count($plan['files']) . ' Dateien werden gelöscht '
+            . '(' . $plan['deleted_files'] . ' Dateien komplett, ' . $plan['rewritten_files'] . ' teilweise). Das kann nicht rückgängig gemacht werden.</p>'
+            . '<details class="mb-3"><summary class="small">Betroffene Dateien anzeigen</summary>'
+            . '<table class="table table-sm small mt-2 mb-0" style="max-width:520px"><thead><tr><th>Datei</th><th class="text-end">Einträge gelöscht / gesamt</th><th></th></tr></thead><tbody>' . $fileRows . '</tbody></table></details>'
+            . '<form method="POST" action="' . url('admin/logs.php') . '" class="d-flex gap-2" onsubmit="return confirm(\'' . $plan['removed_entries'] . ' Log-Einträge endgültig löschen?\')">'
+            . \App\Core\Csrf::field()
+            . '<input type="hidden" name="cleanup_run" value="' . htmlspecialchars($cleanupPreviewMode) . '">'
+            . '<button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash3"></i> Jetzt endgültig löschen</button>'
+            . '<a href="' . url('admin/logs.php') . '" class="btn btn-outline-secondary btn-sm">Abbrechen</a>'
+            . '</form>';
+    }
+    $cleanupHtml .= '</div></div>';
+} else {
+    $cleanupHtml .= '<div class="collapse mb-4" id="logs-cleanup"><div class="card"><div class="card-body">'
+        . '<h6 class="mb-2"><i class="bi bi-trash3 me-1"></i> Logs aufräumen</h6>' . $cleanupInfo
+        . '<div class="d-flex flex-wrap gap-2">';
+    foreach ($cleanupModes as $modeKey => $modeLabel) {
+        $cleanupHtml .= '<a href="' . url('admin/logs.php?cleanup=' . $modeKey) . '" class="btn btn-outline-danger btn-sm">' . htmlspecialchars($modeLabel) . ' &hellip;</a>';
+    }
+    $cleanupHtml .= '</div><div class="small text-muted mt-2">Vor dem Löschen wird angezeigt, was entfernt wird.</div></div></div></div>';
+}
+
 $content = '
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0"><i class="bi bi-journal-text"></i> System-Logs</h2>
-    <a href="' . url('admin/email_failures.php') . '" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-envelope-exclamation"></i> Mail-Fehler
-    </a>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#logs-cleanup">
+            <i class="bi bi-trash3"></i> Logs aufräumen
+        </button>
+        <a href="' . url('admin/email_failures.php') . '" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-envelope-exclamation"></i> Mail-Fehler
+        </a>
+    </div>
 </div>
+
+' . $cleanupHtml . '
 
 <div class="row mb-4">' . $summaryHtml . '</div>
 

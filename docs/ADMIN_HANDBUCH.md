@@ -695,7 +695,22 @@ Warnungen und Fehler können per Klick auf das Häkchen als behoben markiert wer
 
 Beide Fälle werden durchgestrichen dargestellt und zählen nicht in die Warnungs-Zähler der Übersichtskarten. Ein PayPal-Fehler **ohne** eines dieser Badges ist dagegen ein Fall, den Sie sich ansehen sollten.
 
-### 12.6 Mail-Fehler-Übersicht
+### 12.6 Logs aufräumen
+
+Über den Button **Logs aufräumen** oben rechts stehen zwei Aktionen zur Wahl:
+
+| Aktion | Was wird gelöscht |
+|---|---|
+| **Logs von inaktiven Veranstaltungen löschen** | Alle Einträge, die zu einer inaktiven oder gelöschten Veranstaltung gehören. Einträge ohne Veranstaltungsbezug (z. B. Logins, Einstellungen) bleiben erhalten. |
+| **Logs älter als 3 Monate löschen** | Alle Einträge, die älter als 3 Monate sind – außer Einträgen aktiver Veranstaltungen. |
+
+**Einträge aktiver Veranstaltungen werden nie gelöscht.** Ein Eintrag gehört zu einer Veranstaltung, wenn er die Veranstaltung selbst nennt oder Reservierungen dieser Veranstaltung. Die Logs des heutigen Tages bleiben immer unverändert.
+
+Vor dem Löschen zeigt eine **Vorschau**, wie viele Einträge in welchen Dateien entfernt werden. Erst mit **Jetzt endgültig löschen** (plus Rückfrage) wird gelöscht; das lässt sich nicht rückgängig machen. Dateien, die danach leer wären, werden ganz entfernt. Jede Aufräum-Aktion wird im Admin-Log (`logs_cleanup`) festgehalten.
+
+> Unabhängig davon löscht das System Logdateien automatisch nach 180 Tagen.
+
+### 12.7 Mail-Fehler-Übersicht
 
 Über den Button **Mail-Fehler** auf der System-Logs-Seite (`admin/email_failures.php`) erreichen Sie eine Übersicht aller **fehlgeschlagenen E-Mail-Versände** laut Logdateien — wahlweise der letzten 7, 30, 90 oder 180 Tage. Die Fehlschläge werden **pro Bestellung gruppiert** angezeigt mit:
 
