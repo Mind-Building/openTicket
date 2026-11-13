@@ -275,7 +275,10 @@ class EmailService
         }
         $priceStr = number_format($totalPrice, 2, ',', '.') . ' €';
 
-        $seatList = $this->buildSeatList($reservations);
+        // Price per seat (with price type, e.g. "Gruppe 10 %") - helpful for group reservations
+        $seatList = $this->buildSeatList($reservations, true);
+        // The total is always part of the mail: templates without {price} get it after the seat list
+        $bodyTemplate = self::ensureTotalPrice($bodyTemplate);
 
         $seatplanLink    = $this->buildSeatplanViewLink($reservations);
         $seatplanLinkHtml = !empty($seatplanLink)
@@ -535,21 +538,23 @@ class EmailService
         foreach ($vouchers as $voucher) {
             $voucherCodes[] = $voucher['voucher_code'] ?? '';
             $voucherListHtml .= '<div class="voucher-code">' . htmlspecialchars($voucher['voucher_code'] ?? '') . '</div>';
+            $details = '';
             if (!empty($voucher['event_name'])) {
-                $voucherListHtml .= '<p>Veranstaltung: ' . htmlspecialchars($voucher['event_name']) . '</p>';
+                $details .= '<p>Veranstaltung: ' . htmlspecialchars($voucher['event_name']) . '</p>';
             }
             if (!empty($voucher['category_name'])) {
-                $voucherListHtml .= '<p>Kategorie: ' . htmlspecialchars($voucher['category_name']) . '</p>';
+                $details .= '<p>Kategorie: ' . htmlspecialchars($voucher['category_name']) . '</p>';
             }
             if (!empty($voucher['category_price'])) {
                 $qty = (int)($voucher['quantity'] ?? 1);
                 $totalValue = (float)$voucher['category_price'] * $qty;
-                $voucherListHtml .= '<p>Wert: ' . number_format($totalValue, 2, ',', '.') . ' €';
+                $details .= '<p>Wert: ' . number_format($totalValue, 2, ',', '.') . ' €';
                 if ($qty > 1) {
-                    $voucherListHtml .= ' (' . $qty . ' × ' . number_format((float)$voucher['category_price'], 2, ',', '.') . ' €)';
+                    $details .= ' (' . $qty . ' × ' . number_format((float)$voucher['category_price'], 2, ',', '.') . ' €)';
                 }
-                $voucherListHtml .= '</p>';
+                $details .= '</p>';
             }
+            $voucherListHtml .= $this->withVoucherImage($details, $voucher);
         }
 
         $ticketBaseUrl = rtrim(Config::get('ticket_url_start', ''), '/');
@@ -630,14 +635,15 @@ class EmailService
         $voucherListHtml = '';
         $voucherCodes = [];
         foreach ($vouchers as $voucher) {
-            $voucherListHtml .= '<p><strong>' . htmlspecialchars($voucher['voucher_code'] ?? '') . '</strong>';
+            $item = '<p><strong>' . htmlspecialchars($voucher['voucher_code'] ?? '') . '</strong>';
             if (!empty($voucher['category_name'])) {
-                $voucherListHtml .= '<br>Kategorie: ' . htmlspecialchars($voucher['category_name']);
+                $item .= '<br>Kategorie: ' . htmlspecialchars($voucher['category_name']);
             }
             if (!empty($voucher['category_price'])) {
-                $voucherListHtml .= '<br>Wert: ' . number_format((float)$voucher['category_price'], 2, ',', '.') . ' €';
+                $item .= '<br>Wert: ' . number_format((float)$voucher['category_price'], 2, ',', '.') . ' €';
             }
-            $voucherListHtml .= '</p>';
+            $item .= '</p>';
+            $voucherListHtml .= $this->withVoucherImage($item, $voucher);
             $voucherCodes[] = $voucher['voucher_code'] ?? '';
         }
 
@@ -1001,7 +1007,7 @@ class EmailService
      * Build a sorted HTML <ul> seat list from reservations.
      * Seats are sorted by row number then seat number (numeric, ascending).
      */
-    private function buildSeatList(array $reservations): string
+    private function buildSeatList(array $reservations, bool $withPrices = false): string
     {
         usort($reservations, function (array $a, array $b): int {
             $idA = $a['seat_identifier'] ?? '';
@@ -1027,11 +1033,38 @@ class EmailService
             }
             if (!empty($res['is_companion'])) {
                 $seatLine .= ' – <strong>Begleitperson kostenfrei</strong>';
+            } elseif ($withPrices) {
+                $priceInfo = \App\Helpers\TicketPrice::forReservation($res);
+                $priceLabel = \App\Helpers\TicketPrice::label($priceInfo);
+                $seatLine .= ' – ' . number_format($priceInfo['price'], 2, ',', '.') . ' €'
+                    . ($priceLabel !== '' ? ' (' . htmlspecialchars($priceLabel) . ')' : '');
             }
             $html .= '<li>' . $seatLine . '</li>';
         }
         $html .= '</ul>';
         return $html;
+    }
+
+    /**
+     * Make sure a reservation mail shows the total: a template without {price} gets a
+     * "Gesamtsumme" line after {seat_list} (or before the closing greeting / at the end).
+     */
+    public static function ensureTotalPrice(string $template): string
+    {
+        if (str_contains($template, '{price}')) {
+            return $template;
+        }
+        $line = '<p><strong>Gesamtsumme:</strong> {price}</p>';
+        $pos = strpos($template, '{seat_list}');
+        if ($pos !== false) {
+            $pos += strlen('{seat_list}');
+            return substr($template, 0, $pos) . "\n" . $line . substr($template, $pos);
+        }
+        $pos = stripos($template, '<p>Mit freundlichen');
+        if ($pos === false) {
+            $pos = stripos($template, '</body>');
+        }
+        return $pos === false ? $template . "\n" . $line : substr($template, 0, $pos) . $line . "\n" . substr($template, $pos);
     }
 
     /**
@@ -1062,6 +1095,59 @@ class EmailService
             );
         }
         return $template;
+    }
+
+    /** @var array<int, string> event id => absolute URL of the voucher mail motif ('' = none) */
+    private array $voucherImageCache = [];
+
+    /**
+     * Voucher details with the event's motif to the right (Veranstaltung bearbeiten → Gutscheine).
+     * Table layout, so it also works in mail clients without CSS support. Unchanged without motif.
+     */
+    private function withVoucherImage(string $detailsHtml, array $voucher): string
+    {
+        $imageUrl = $this->voucherImageUrl((int)($voucher['event_id'] ?? 0));
+        if ($imageUrl === '') {
+            return $detailsHtml;
+        }
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+            . '<td valign="top">' . $detailsHtml . '</td>'
+            . '<td valign="top" align="right" width="180" style="padding-left:12px;">'
+            . '<img src="' . htmlspecialchars($imageUrl) . '" alt="' . htmlspecialchars((string)($voucher['event_name'] ?? '')) . '" width="170"'
+            . ' style="display:block;width:170px;max-width:100%;height:auto;border:0;">'
+            . '</td></tr></table>';
+    }
+
+    /**
+     * Absolute URL of the motif shown next to the vouchers of an event in the voucher mail
+     * (events.voucher_email_image), or '' when none is set / the file is missing.
+     */
+    private function voucherImageUrl(int $eventId): string
+    {
+        if ($eventId <= 0) {
+            return '';
+        }
+        if (!array_key_exists($eventId, $this->voucherImageCache)) {
+            $event = (new \App\Models\Event())->getById($eventId);
+            $path = ltrim((string)($event['voucher_email_image'] ?? ''), '/');
+            $url = '';
+            if ($path !== '' && is_file(dirname(__DIR__, 2) . '/public/' . $path)) {
+                $url = $this->publicBaseUrl() . '/' . $path;
+            }
+            $this->voucherImageCache[$eventId] = $url;
+        }
+        return $this->voucherImageCache[$eventId];
+    }
+
+    /**
+     * Externally reachable base URL of public/ (ticket_url_start, else the current absolute URL).
+     */
+    private function publicBaseUrl(): string
+    {
+        $configuredBase = Config::get('ticket_url_start', '');
+        return !empty($configuredBase)
+            ? rtrim(ensurePublicInUrl($configuredBase), '/')
+            : rtrim(absoluteUrl(''), '/');
     }
 
     /**
@@ -1198,6 +1284,7 @@ class EmailService
             <p>vielen Dank für Ihre Reservierung!</p>
             <p>Sie haben {reservation_count} Platz/Plätze für "{event_name}" am {event_date} um {event_time} reserviert.</p>
             {seat_list}
+            <p><strong>Gesamtsumme:</strong> {price}</p>
             <p>Mit freundlichen Grüßen<br>Ihr Ticket-Team</p>
         </div>
         <div class="footer">

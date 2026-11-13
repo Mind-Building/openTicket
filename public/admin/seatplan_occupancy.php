@@ -300,7 +300,7 @@ ob_start();
                                 echo '</div>';
 
                             } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                                echo '<span class="distance-el"' . seatplanStairsAttr($element) . '></span>';
+                                echo '<span class="distance-el"' . seatplanStairsAttr($element, $event ?? null) . '></span>';
                             } elseif ($element['type'] === 'stage') {
                                 echo '<div class="stage-el" style="background:#6c757d;padding:4px 8px;">'
                                    . htmlspecialchars($element['label'] ?? 'Bühne') . '</div>';
@@ -322,7 +322,7 @@ ob_start();
             </div>
             <?php if (isset(seatplanElementTypes($seatPlan ?? [])['stairs'])): ?>
             <div class="legend-item">
-                <div class="legend-box" style="background:#fff;border:2px solid #000;"></div><span>Treppe</span>
+                <div class="legend-box" style="<?= \App\Helpers\SeatPlanStyle::stairsLegendCss($event ?? null) ?>"></div><span>Treppe</span>
             </div>
             <?php endif; ?>
             <?php foreach ($categories as $cat): ?>

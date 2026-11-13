@@ -188,7 +188,7 @@ $pageTitle = htmlspecialchars($event['name']) . ' – Ihr Sitzplan';
                                             }
                                             echo '</div>';
                                         } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                                            echo '<span class="distance-element"' . seatplanStairsAttr($element) . '></span>';
+                                            echo '<span class="distance-element"' . seatplanStairsAttr($element, $event ?? null) . '></span>';
                                         } elseif ($element['type'] === 'stage') {
                                             echo '<div class="stage-element" style="background:#6c757d;padding:5px 10px;border-radius:4px;">'
                                                 . htmlspecialchars($element['label'] ?? 'Bühne') . '</div>';

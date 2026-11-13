@@ -73,7 +73,7 @@ foreach ($cartItems as $item) {
         'reservation' => $item,
         'category' => $category,
         'price' => $price,
-        'price_type' => \App\Helpers\TicketPrice::typeLabel($priceInfo['type']),
+        'price_type' => \App\Helpers\TicketPrice::label($priceInfo),
         'choices' => $choices,
         'selected_type' => $selectedType,
     ];

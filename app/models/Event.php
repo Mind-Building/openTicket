@@ -9,6 +9,27 @@ use App\Core\Database;
 
 class Event
 {
+    /** Columns added by database/migrate_event_display.sql */
+    public const DISPLAY_FIELDS = [
+        'voucher_info_text',
+        'voucher_email_image',
+        'seatplan_distance_color',
+        'seatplan_distance_border',
+        'seatplan_stairs_color',
+        'seatplan_stairs_border',
+    ];
+
+    /** Text columns where an empty value is stored as NULL (= use the default) */
+    private const NULLABLE_TEXT_FIELDS = [
+        'voucher_info_text',
+        'voucher_email_image',
+        'seatplan_distance_color',
+        'seatplan_stairs_color',
+    ];
+
+    /** @var bool|null Whether the columns of database/migrate_event_display.sql exist */
+    private static ?bool $displayColumns = null;
+
     private Database $db;
 
     public function __construct()
@@ -191,7 +212,11 @@ class Event
             'voucher_template',
             'voucher_template_config',
         ];
-        
+        // Columns of database/migrate_event_display.sql - only once the migration has run
+        if ($this->hasDisplayColumns()) {
+            array_push($allowedFields, ...self::DISPLAY_FIELDS);
+        }
+
         $setClause = [];
         $params = [':id' => $id];
         
@@ -202,6 +227,10 @@ class Event
                 
                 if (str_ends_with($field, '_template_config') && !is_string($data[$field])) {
                     $params[$placeholder] = json_encode($data[$field]);
+                } elseif (in_array($field, self::NULLABLE_TEXT_FIELDS, true)) {
+                    // Empty string clears the value (falls back to the default)
+                    $value = trim((string)$data[$field]);
+                    $params[$placeholder] = $value === '' ? null : $value;
                 } elseif ($field === 'max_seats' || $field === 'seat_category_id') {
                     // Handle nullable integer fields
                     $params[$placeholder] = ($data[$field] === '' || $data[$field] === null) ? null : (int)$data[$field];
@@ -221,6 +250,31 @@ class Event
         $this->db->query($sql, $params);
 
         return true;
+    }
+
+    /**
+     * Whether the per-event display columns exist (database/migrate_event_display.sql).
+     * Until the migration has run, the settings are hidden and the defaults apply.
+     */
+    public function hasDisplayColumns(): bool
+    {
+        if (self::$displayColumns === null) {
+            self::$displayColumns = (bool)$this->db->query("SHOW COLUMNS FROM events LIKE 'seatplan_stairs_border'")->fetch();
+        }
+        return self::$displayColumns;
+    }
+
+    /**
+     * Info text for the voucher area of an event: the event's own text, otherwise the
+     * text from the settings (voucher_info_text). Empty string when neither is set.
+     */
+    public static function voucherInfoText(?array $event): string
+    {
+        $text = trim((string)($event['voucher_info_text'] ?? ''));
+        if ($text === '') {
+            $text = trim((string)\App\Core\Config::get('voucher_info_text', ''));
+        }
+        return $text;
     }
 
     /**

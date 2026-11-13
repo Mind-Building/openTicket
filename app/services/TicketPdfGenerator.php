@@ -627,7 +627,7 @@ class TicketPdfGenerator
 
         $codeType = (string)($event['ticket_code_type'] ?? '');
         $ticketPrice = TicketPrice::forReservation($reservation);
-        $priceType = TicketPrice::typeLabel($ticketPrice['type']);
+        $priceType = TicketPrice::label($ticketPrice);
         if (!empty($reservation['is_companion'])) {
             // Wheelchair companion ticket – always free; (B) = Begleitperson
             $priceFormatted = '0 € (B)';

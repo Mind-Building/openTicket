@@ -351,6 +351,14 @@ function showFeedback(message, type = "info") {
 
 let seatPlanData = ' . json_encode($seatPlan ?? []) . ';
 let categories = ' . json_encode($categories ?? []) . ';
+// Colours of distances/stairs of this event (Veranstaltung bearbeiten → Sitzplan-Darstellung)
+const SEATPLAN_STYLE = ' . json_encode(\App\Helpers\SeatPlanStyle::forJs($event ?? null)) . ';
+function editorDistanceStyle(stairs) {
+    const bg = stairs ? SEATPLAN_STYLE.stairsColor : SEATPLAN_STYLE.distanceColor;
+    const fg = stairs ? SEATPLAN_STYLE.stairsText : SEATPLAN_STYLE.distanceText;
+    const border = (stairs ? SEATPLAN_STYLE.stairsBorder : SEATPLAN_STYLE.distanceBorder) ? "2px solid #000" : "2px dashed rgba(0,0,0,.25)";
+    return "background: " + bg + "; color: " + fg + "; border: " + border + ";";
+}
 let eventId = ' . ($eventId ?? 0) . ';
 let numberingMode = localStorage.getItem("seatplan_numbering_mode") || "perRow";
 
@@ -1039,7 +1047,7 @@ function addElement(rowIndex, elementType) {
             "<div class=\"form-check form-check-inline\"><input class=\"form-check-input\" type=\"radio\" name=\"addElKind\" id=\"addElKindGap\" value=\"gap\" checked>" +
             "<label class=\"form-check-label\" for=\"addElKindGap\">Abstand</label></div>" +
             "<div class=\"form-check form-check-inline\"><input class=\"form-check-input\" type=\"radio\" name=\"addElKind\" id=\"addElKindStairs\" value=\"stairs\">" +
-            "<label class=\"form-check-label\" for=\"addElKindStairs\">Treppe <span class=\"text-muted small\">(weiß mit schwarzem Rahmen)</span></label></div>" +
+            "<label class=\"form-check-label\" for=\"addElKindStairs\">Treppe <span class=\"text-muted small\">(Farbe unter Veranstaltung bearbeiten → Sitzplan-Darstellung)</span></label></div>" +
             "</div>" +
             "<div class=\"form-check mb-3\">" +
             "<input class=\"form-check-input\" type=\"checkbox\" id=\"addElConsumes\">" +
@@ -1859,11 +1867,11 @@ function renderSeatPlan() {
                     elementHtml = tableHtml;
                 } else if (element.type === "distance" || element.type === "spacer") {
                     if (element.stairs) {
-                        elementHtml = `<span class="badge distance-element" style="font-size: 0.9rem; padding: 0.5rem; background: #fff; color: #000; border: 2px solid #000;" title="Treppe${element.consumes_number ? " (schluckt Sitz-Nr. " + element.no + ")" : ""}"><i class="bi bi-bar-chart-steps"></i> Treppe${element.consumes_number ? " (" + element.no + ")" : ""}</span>`;
+                        elementHtml = `<span class="badge distance-element" style="font-size: 0.9rem; padding: 0.5rem; ${editorDistanceStyle(true)}" title="Treppe${element.consumes_number ? " (schluckt Sitz-Nr. " + element.no + ")" : ""}"><i class="bi bi-bar-chart-steps"></i> Treppe${element.consumes_number ? " (" + element.no + ")" : ""}</span>`;
                     } else if (element.consumes_number) {
-                        elementHtml = `<span class="badge distance-element bg-secondary" style="font-size: 0.9rem; padding: 0.5rem;" title="Abstand mit Nummerierung (schluckt Sitz-Nr. ${element.no})"><i class="bi bi-arrows-expand-vertical"></i> Abstand (${element.no})</span>`;
+                        elementHtml = `<span class="badge distance-element" style="font-size: 0.9rem; padding: 0.5rem; ${editorDistanceStyle(false)}" title="Abstand mit Nummerierung (schluckt Sitz-Nr. ${element.no})"><i class="bi bi-arrows-expand-vertical"></i> Abstand (${element.no})</span>`;
                     } else {
-                        elementHtml = `<span class="badge distance-element bg-secondary" style="font-size: 0.9rem; padding: 0.5rem;" title="Reiner visueller Abstand">Abstand</span>`;
+                        elementHtml = `<span class="badge distance-element" style="font-size: 0.9rem; padding: 0.5rem; ${editorDistanceStyle(false)}" title="Reiner visueller Abstand">Abstand</span>`;
                     }
                 } else if (element.type === "stage") {
                     elementHtml = `<div class="badge stage-element bg-dark text-white" style="font-size: 1rem; padding: 1rem; width: 100%; text-align: center; display: block;">

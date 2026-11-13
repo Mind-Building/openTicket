@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // List of all boolean config keys (checkboxes)
-        $booleanKeys = ['paypal_active', 'voucher_active', 'reduced_prices_active', 'fn_card_active', 
+        $booleanKeys = ['paypal_active', 'voucher_active', 'reduced_prices_active', 'fn_card_active', 'discounts_active', 
             'email_enabled', 'email_use_smtp', 'email_smtp_secure',
             'customer_allow_paypal', 'customer_allow_reservation', 'customer_allow_cash', 'customer_allow_vouchers',
             'admin_allow_paypal', 'admin_allow_reservation', 'admin_allow_cash', 'admin_allow_vouchers',
@@ -105,12 +105,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Config::set('fn_card_factor', (string)round($percent / 100, 4), 'string');
         }
 
+        // Percentage discounts for staff sales (label + percent per row), stored as JSON
+        if (isset($_POST['discount_label']) && is_array($_POST['discount_label'])) {
+            $discounts = [];
+            foreach ($_POST['discount_label'] as $i => $label) {
+                $label = mb_substr(trim((string)$label), 0, 50);
+                $percent = round((float)str_replace(',', '.', (string)($_POST['discount_percent'][$i] ?? '')), 2);
+                if ($label !== '' && $percent > 0 && $percent <= 100) {
+                    $discounts[] = ['label' => $label, 'percent' => $percent];
+                }
+            }
+            Config::set('discounts', json_encode($discounts, JSON_UNESCAPED_UNICODE), 'string');
+        }
+
         $message = 'Einstellungen erfolgreich gespeichert.';
         $messageType = 'success';
     } catch (\Exception $e) {
         $message = 'Fehler beim Speichern: ' . $e->getMessage();
         $messageType = 'danger';
     }
+}
+
+/**
+ * Settings block for the percentage discounts staff can give when selling (TicketPrice::discounts()).
+ */
+function renderDiscountSettings(array $configArray): string
+{
+    $active = ($configArray['discounts_active']['value'] ?? '0') == '1';
+    $list = array_values(\App\Helpers\TicketPrice::parseDiscounts($configArray['discounts']['value'] ?? null));
+    $list[] = ['label' => '', 'percent' => ''];
+    $list[] = ['label' => '', 'percent' => ''];
+    $rows = '';
+    foreach ($list as $discount) {
+        $percent = $discount['percent'] === '' ? '' : rtrim(rtrim(number_format((float)$discount['percent'], 2, '.', ''), '0'), '.');
+        $rows .= '<div class="row g-2 mb-1">'
+            . '<div class="col-8"><input type="text" class="form-control form-control-sm" name="discount_label[]" maxlength="50" placeholder="Bezeichnung (wird aufs Ticket gedruckt)" value="' . htmlspecialchars($discount['label']) . '"></div>'
+            . '<div class="col-4"><div class="input-group input-group-sm"><input type="number" class="form-control" name="discount_percent[]" min="0.5" max="100" step="0.5" value="' . htmlspecialchars($percent) . '"><span class="input-group-text">%</span></div></div>'
+            . '</div>';
+    }
+    $migrated = (new \App\Models\Reservation())->hasDiscountColumns();
+    return '
+                            <div class="mb-2 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="config_discounts_active" name="config_discounts_active" value="1"' . ($active ? ' checked' : '') . '>
+                                <label class="form-check-label" for="config_discounts_active">Rabatte im Verkauf (Admin/Vorverkauf) aktivieren</label>
+                            </div>
+                            <div class="ms-4 mb-3">
+                                ' . $rows . '
+                                <div class="form-text">Prozent-Rabatt auf den Normalpreis der Kategorie, z. B. „50 % Rabatt“ oder „Gruppe 10 %“. Beim Verkauf pro Platz wählbar; die Bezeichnung erscheint über <code>{price_type}</code> auf dem Ticket. Zeile leeren = Rabatt entfernen.</div>'
+                                . ($migrated ? '' : '<div class="alert alert-warning py-1 px-2 small mt-2 mb-0">Rabatte sind erst nach dem <a href="' . url('admin/database_update.php') . '">Datenbank-Update</a> im Verkauf verfügbar.</div>') . '
+                            </div>';
 }
 
 // Get all configurations
@@ -172,10 +215,9 @@ function getDefaultReservationEmailBody() {
         <div class="content">
             <p>Hallo {customer_name},</p>
             <p>vielen Dank für Ihre Reservierung!</p>
-            <p>Sie haben einen Platz für "{event_name}" am {event_date} um {event_time} reserviert.</p>
-            <p><strong>Platz:</strong> {seat_identifier}</p>
-            <p><strong>Kategorie:</strong> {category_name}</p>
-            <p><strong>Preis:</strong> {price}</p>
+            <p>Sie haben {reservation_count} Platz/Plätze für "{event_name}" am {event_date} um {event_time} reserviert.</p>
+            {seat_list}
+            <p><strong>Gesamtsumme:</strong> {price}</p>
             <p>Bitte schließen Sie Ihre Bestellung innerhalb von 15 Minuten ab:</p>
             <p style="text-align: center;">
                 <a href="{reservation_link}" class="button">Zur Bestellung</a>
@@ -811,6 +853,16 @@ $content = '
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            ' . renderDiscountSettings($configArray) . '
+
+                            <div class="mb-3">
+                                <label for="config_voucher_info_text" class="form-label">Gutschein-Hinweistext</label>
+                                <textarea class="form-control" id="config_voucher_info_text" name="config_voucher_info_text" rows="4"
+                                          placeholder="z. B. Um ein Ticket in der entsprechenden Kategorie zu sichern, weisen Sie bitte die beschenkte Person darauf hin, den Gutschein unbedingt zeitnah einzulösen.">' . htmlspecialchars($configArray['voucher_info_text']['value'] ?? '') . '</textarea>
+                                <div class="form-text">Erscheint bei allen Veranstaltungen neben „Gutscheine kaufen“ und auf der Gutschein-Kaufseite. Pro Veranstaltung kann ein eigener Text hinterlegt werden (Veranstaltung bearbeiten → Gutscheine).</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -863,7 +915,7 @@ $content = '
                                 <textarea class="form-control" id="config_email_reservation_body" name="config_email_reservation_body" rows="15">' . htmlspecialchars($configArray['email_reservation_body']['value'] ?? getDefaultReservationEmailBody()) . '</textarea>
                                 <div class="alert alert-info mt-2 py-2 small">
                                     <i class="bi bi-braces"></i> <strong>Verfügbare Platzhalter:</strong><br>
-                                    <code>{customer_name}</code>, <code>{event_name}</code>, <code>{event_date}</code>, <code>{event_time}</code>, <code>{category_name}</code>, <code>{price}</code>, <code>{seat_list}</code> (Sitzplatzliste), <code>{seat_identifier}</code> (erster Sitzplatz), <code>{reservation_count}</code>, <code>{reservation_link}</code>, <code>{seatplan_link}</code> (URL Sitzplan), <code>{seatplan_link_html}</code> (Sitzplan-Button)
+                                    <code>{customer_name}</code>, <code>{event_name}</code>, <code>{event_date}</code>, <code>{event_time}</code>, <code>{category_name}</code>, <code>{price}</code> (Gesamtsumme – fehlt er in der Vorlage, wird die Gesamtsumme automatisch unter der Sitzplatzliste eingefügt), <code>{seat_list}</code> (Sitzplatzliste mit Einzelpreisen), <code>{seat_identifier}</code> (erster Sitzplatz), <code>{reservation_count}</code>, <code>{reservation_link}</code>, <code>{seatplan_link}</code> (URL Sitzplan), <code>{seatplan_link_html}</code> (Sitzplan-Button)
                                 </div>
                             </div>
                         </div>

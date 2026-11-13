@@ -102,6 +102,14 @@ Hier können alle Einstellungen der Veranstaltung geändert werden. Zusätzlich 
 
 → Siehe [Abschnitt 15](#15-e-mail-vorlagen--platzhalter) für alle verfügbaren Platzhalter.
 
+**Gutscheine:**
+- *Hinweistext beim Gutscheinkauf* – erscheint fett neben „Gutscheine kaufen" auf der Veranstaltungsseite und oben auf der Gutschein-Kaufseite (z. B. „Bitte weisen Sie die beschenkte Person darauf hin, den Gutschein zeitnah einzulösen …"). Leer = Text aus *Einstellungen → Funktionen → Gutschein-Hinweistext*, der für alle Veranstaltungen gilt.
+- *Motiv für die E-Mail „Ihr Gutschein"* – Bild (JPG/PNG/GIF, z. B. das Motiv der Eintrittskarte), das in der Gutschein-Mail rechts neben jedem Gutschein dieser Veranstaltung steht. Für E-Mails ein kleines Bild verwenden (ca. 400 px breit). „Bild entfernen" löscht es wieder.
+
+**Sitzplan-Darstellung:** Farbe der **Abstände** und **Treppen** sowie jeweils „mit schwarzem Rahmen" ja/nein. Ohne eigene Farbe gilt der Standard (Abstände grau, Treppen weiß mit Rahmen). Die Einstellung wirkt in allen Sitzplan-Ansichten, im Editor und im Sitzplan-PDF.
+
+> **Migration erforderlich:** `database/migrate_event_display.sql` (über *Einstellungen → Datenbank-Update*). Bis dahin zeigt die Seite einen Hinweis statt dieser Felder.
+
 **Als Kunde testen:** Der Button öffnet die Veranstaltung in der Kundenansicht (neuer Tab). Als angemeldeter Admin funktioniert das auch, wenn die Veranstaltung **nicht aktiv** ist – so lässt sich der komplette Kauf vor der Freischaltung durchspielen. Oben erscheint dann der Hinweis „Admin-Vorschau". Achtung: Buchungen sind echte Bestellungen – mit PayPal-Sandbox testen und die Testbestellungen danach unter *Reservierungen* löschen.
 
 ### 3.4 Ticket-Templates (Kunde & Vorverkauf)
@@ -196,7 +204,7 @@ Die Buttons **Platz**, **Tisch**, **Abstand** und **Rollstuhl** in der Kopfzeile
 
 #### Abstand oder Treppe
 
-Beim Hinzufügen eines Abstands wird die **Art** gewählt: *Abstand* (grau) oder *Treppe* (weiß mit schwarzem Rahmen). Ein vorhandener Abstand lässt sich über *Bearbeiten* (Stift im Menü) zwischen Abstand und Treppe umschalten. Treppen erscheinen so in allen Sitzplan-Ansichten und im PDF; Kunden sehen „Treppe" in der Legende. Erst mit **Speichern** übernommen.
+Beim Hinzufügen eines Abstands wird die **Art** gewählt: *Abstand* (Standard grau) oder *Treppe* (Standard weiß mit schwarzem Rahmen); Farben und Rahmen lassen sich pro Veranstaltung unter *Veranstaltung bearbeiten → Sitzplan-Darstellung* ändern. Ein vorhandener Abstand lässt sich über *Bearbeiten* (Stift im Menü) zwischen Abstand und Treppe umschalten. Treppen erscheinen so in allen Sitzplan-Ansichten und im PDF; Kunden sehen „Treppe" in der Legende. Erst mit **Speichern** übernommen.
 
 #### Elemente verschieben (Drag & Drop)
 
@@ -786,6 +794,8 @@ Alternativ per Kommandozeile im Installationsverzeichnis: `php database/update_d
 | FN-Card aktiv | FN-Card-Rabatt verfügbar |
 | FN-Karte: Rabatt in % | Rabatt auf den Normalpreis (Standard 10 %) |
 | FN-Karte: max. Tickets pro Karte und Veranstaltung | Wie viele Tickets mit **derselben** FN-Card-Nummer für eine Veranstaltung gekauft werden dürfen – über alle Termine, inkl. Warenkörbe (Standard 2) |
+| Rabatte im Verkauf (Admin/Vorverkauf) aktivieren | Prozent-Rabatte, die beim Verkauf pro Platz wählbar sind (nicht im Online-Shop). Liste mit **Bezeichnung** und **%** – vorbelegt mit „50 % Rabatt", „Gruppe 10 %", „Gruppe 15 %"; weitere Zeilen ergänzen, Zeile leeren = entfernen. Die Bezeichnung wird über `{price_type}` aufs Ticket gedruckt. Verkaufte Tickets behalten ihren Rabatt, auch wenn die Liste später geändert wird. Erfordert `database/migrate_discounts.sql`. |
+| Gutschein-Hinweistext | Text neben „Gutscheine kaufen" für alle Veranstaltungen (pro Veranstaltung überschreibbar, siehe 3.3) |
 | E-Mail-Versand aktiv | Alle automatischen E-Mails an Kunden |
 
 ### 14.4 E-Mail-SMTP-Konfiguration

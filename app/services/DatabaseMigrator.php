@@ -109,6 +109,20 @@ class DatabaseMigrator
                 'description' => 'Abstände als Treppe',
                 'applied' => fn() => $this->columnExists('seat_plan_elements', 'is_stairs'),
             ],
+            [
+                'id' => 'event_display',
+                'file' => 'migrate_event_display.sql',
+                'description' => 'Gutschein-Infotext und Gutschein-Mail-Motiv je Veranstaltung, Farben für Abstände/Treppen',
+                'applied' => fn() => $this->columnExists('events', 'voucher_info_text')
+                    && $this->columnExists('events', 'voucher_email_image')
+                    && $this->columnExists('events', 'seatplan_stairs_border'),
+            ],
+            [
+                'id' => 'discounts',
+                'file' => 'migrate_discounts.sql',
+                'description' => 'Prozent-Rabatte im Verkauf (50 %, Gruppenrabatte)',
+                'applied' => fn() => $this->columnExists('reservations', 'discount_percent'),
+            ],
         ];
     }
 

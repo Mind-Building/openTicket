@@ -69,6 +69,12 @@ $pageTitle = 'Gutscheine kaufen - ' . htmlspecialchars($event['name']);
                 </a>
                 <h1><i class="bi bi-gift"></i> Gutscheine kaufen</h1>
                 <p class="text-muted"><?= htmlspecialchars($event['name']) ?></p>
+                <?php $voucherInfo = \App\Models\Event::voucherInfoText($event); ?>
+                <?php if ($voucherInfo !== ''): ?>
+                    <div class="alert alert-info fw-bold">
+                        <i class="bi bi-info-circle"></i> <?= nl2br(htmlspecialchars($voucherInfo)) ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 

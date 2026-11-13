@@ -471,7 +471,7 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
                             }
                             $seatPlanHtml .= '</div>';
                         } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element) . '>&nbsp;</span>';
+                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element, $event ?? null) . '>&nbsp;</span>';
                         }
                     }
                     $seatPlanHtml .= '</div></div>';
@@ -487,7 +487,7 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
             . '<div class="legend-item"><span class="legend-box" style="background:#dc3545;"></span> Reserviert</div>';
         $legendTypes = seatplanElementTypes($seatPlan);
         if (isset($legendTypes['stairs'])) {
-            $legendHtml .= '<div class="legend-item"><span class="legend-box" style="background:#fff;border:2px solid #000;"></span> Treppe</div>';
+            $legendHtml .= '<div class="legend-item"><span class="legend-box" style="' . \App\Helpers\SeatPlanStyle::stairsLegendCss($event ?? null) . '"></span> Treppe</div>';
         }
         foreach ($categories as $cat) {
             if (!empty($cat['color'])) {

@@ -362,7 +362,7 @@ $pageTitle = htmlspecialchars($event['name']) . ' - Sitzplan';
                                                                 <?php endif; ?>
                                                             </div>
                                                         <?php elseif ($element['type'] === 'distance' || $element['type'] === 'spacer'): ?>
-                                                            <span class="distance-element"<?= seatplanStairsAttr($element) ?>>&nbsp;</span>
+                                                            <span class="distance-element"<?= seatplanStairsAttr($element, $event ?? null) ?>>&nbsp;</span>
                                                         <?php elseif ($element['type'] === 'stage'): ?>
                                                             <div class="stage-element" style="background-color: #6c757d; color: white; padding: 5px 10px; border-radius: 4px; margin: 2px;">
                                                                 <?= htmlspecialchars($element['label'] ?? 'Bühne') ?>
@@ -402,7 +402,7 @@ $pageTitle = htmlspecialchars($event['name']) . ' - Sitzplan';
                             <?php endif; ?>
                             <?php if (isset($planTypes['stairs'])): ?>
                             <div class="legend-item">
-                                <span class="seat-element" style="background-color: #fff; border: 2px solid #000;"></span>
+                                <span class="seat-element" style="<?= \App\Helpers\SeatPlanStyle::stairsLegendCss($event) ?>"></span>
                                 <span>Treppe</span>
                             </div>
                             <?php endif; ?>

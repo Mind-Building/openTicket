@@ -282,6 +282,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_reduced' => $isCompanion ? 0 : ($seatData['is_reduced'] ?? 0),
                         'is_fn_card' => $isCompanion ? 0 : ($seatData['is_fn_card'] ?? 0),
                         'fn_card_number' => $isCompanion ? null : ($seatData['fn_card_number'] ?? null),
+                        'discount_label' => $isCompanion ? null : ($seatData['discount_label'] ?? null),
+                        'discount_percent' => $isCompanion ? null : ($seatData['discount_percent'] ?? null),
                         'is_honor_card' => 0,
                         'is_companion' => $isCompanion ? 1 : 0,
                         'voucher_id' => $redeemedVoucherId,
@@ -341,12 +343,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             break;
                         }
                     }
-                    $categoryPrice = $seatCategory ? (float)$seatCategory['price'] : (float)($seatData['category_price'] ?? 0);
-                    if (!empty($seatData['is_companion'])) {
-                        $categoryPrice = 0;
-                    } elseif (!empty($seatData['is_reduced']) && $seatCategory && (float)($seatCategory['reduced_price'] ?? 0) > 0) {
-                        $categoryPrice = (float)$seatCategory['reduced_price'];
-                    }
+                    // Same rule as ticket and mails (reduced, FN card, percentage discount, companion)
+                    $categoryPrice = $seatCategory
+                        ? \App\Helpers\TicketPrice::forReservation([
+                            'category_id' => $seatCategory['id'],
+                            'event_id' => $eventId,
+                            'event_date' => $eventDate,
+                            'is_companion' => $seatData['is_companion'] ?? 0,
+                            'is_reduced' => $seatData['is_reduced'] ?? 0,
+                            'is_fn_card' => $seatData['is_fn_card'] ?? 0,
+                            'discount_percent' => $seatData['discount_percent'] ?? null,
+                            'discount_label' => $seatData['discount_label'] ?? null,
+                        ])['price']
+                        : (!empty($seatData['is_companion']) ? 0.0 : (float)($seatData['category_price'] ?? 0));
                     $totalPrice += $categoryPrice;
                 }
                 
@@ -944,7 +953,7 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
                             
                             $seatPlanHtml .= '</div>';
                         } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element) . '>&nbsp;</span>';
+                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element, $event ?? null) . '>&nbsp;</span>';
                         }
                     }
                     
@@ -962,7 +971,7 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
         // Only what this hall has
         $legendTypes = seatplanElementTypes($seatPlan);
         if (isset($legendTypes['stairs'])) {
-            $legendHtml .= '<div class="legend-item"><span class="legend-box" style="background:#fff;border:2px solid #000;"></span> Treppe</div>';
+            $legendHtml .= '<div class="legend-item"><span class="legend-box" style="' . \App\Helpers\SeatPlanStyle::stairsLegendCss($event ?? null) . '"></span> Treppe</div>';
         }
         foreach ($categories as $cat) {
             if (!empty($cat['color'])) {

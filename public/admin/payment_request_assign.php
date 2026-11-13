@@ -457,7 +457,7 @@ if ($step === 'done' && !empty($success)) {
                             }
                             $seatPlanHtml .= '</div>';
                         } elseif ($element['type'] === 'distance' || $element['type'] === 'spacer') {
-                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element) . '>' . (empty($element['stairs']) ? (int)($element['no'] ?? 0) : '') . '</span>';
+                            $seatPlanHtml .= '<span class="distance-element"' . seatplanStairsAttr($element, $event ?? null) . '>' . (empty($element['stairs']) ? (int)($element['no'] ?? 0) : '') . '</span>';
                         }
                     }
                     $seatPlanHtml .= '</div></div>';

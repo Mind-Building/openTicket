@@ -602,6 +602,13 @@ function fetchSeatplanAndRender(date, selectedRes, requiredCategories) {
         .catch(err => { document.getElementById("orderModalBody").innerHTML = `<div class="alert alert-danger">Fehler: ${escHtml(err.message)}</div>`; });
 }
 
+function seatplanDistanceStyle(s, stairs) {
+    s = s || {};
+    var bg = stairs ? (s.stairsColor || "#ffffff") : (s.distanceColor || "#6c757d");
+    var fg = stairs ? (s.stairsText || "#000") : (s.distanceText || "#fff");
+    var border = (stairs ? (s.stairsBorder !== false) : !!s.distanceBorder) ? "2px solid #000" : "1px solid " + bg;
+    return "background:" + bg + ";color:" + fg + ";border:" + border + ";";
+}
 function renderRebookUI(data, selectedRes, requiredCategories, reservedSeats, freeOverrides, currentDate) {
     const modalBody = document.getElementById("orderModalBody");
     let html = "";
@@ -642,7 +649,7 @@ function renderRebookUI(data, selectedRes, requiredCategories, reservedSeats, fr
                 } else if (el.type === "table") {
                     html += renderRebookTable(el, row.no, rowCat, catColors, reservedSeats, freeOverrides, requiredCategories);
                 } else if (el.type === "distance" || el.type === "spacer") {
-                    html += `<span ${el.stairs ? "title=\"Treppe\" " : ""}style="${el.stairs ? "background:#fff;color:#000;border:2px solid #000;" : "background:#6c757d;color:white;border:1px solid #6c757d;"}display:inline-block;box-sizing:border-box;width:2.5rem;min-width:2.5rem;flex:0 0 2.5rem;padding:0.25rem 0;border-radius:0.2rem;font-size:0.75rem;text-align:center;cursor:not-allowed;">${el.stairs ? "" : (el.no || "")}</span>`;
+                    html += `<span ${el.stairs ? "title=\"Treppe\" " : ""}style="${seatplanDistanceStyle(data.seatplan_style, el.stairs)}display:inline-block;box-sizing:border-box;width:2.5rem;min-width:2.5rem;flex:0 0 2.5rem;padding:0.25rem 0;border-radius:0.2rem;font-size:0.75rem;text-align:center;cursor:not-allowed;">${el.stairs ? "" : (el.no || "")}</span>`;
                 }
             }
             html += "</div></div>";
@@ -837,7 +844,7 @@ function renderAddSeatsUI(data) {
             } else if (el.type === "table") {
                 html += renderAddSeatTable(el, rowCat, catColors, reservedSeats);
             } else if (el.type === "distance" || el.type === "spacer") {
-                html += `<span ${el.stairs ? "title=\"Treppe\" " : ""}style="${el.stairs ? "background:#fff;color:#000;border:2px solid #000;" : "background:#6c757d;color:white;border:1px solid #6c757d;"}display:inline-block;box-sizing:border-box;width:2.5rem;min-width:2.5rem;flex:0 0 2.5rem;padding:0.25rem 0;border-radius:0.2rem;font-size:0.75rem;text-align:center;cursor:not-allowed;">${el.stairs ? "" : (el.no || "")}</span>`;
+                html += `<span ${el.stairs ? "title=\"Treppe\" " : ""}style="${seatplanDistanceStyle(data.seatplan_style, el.stairs)}display:inline-block;box-sizing:border-box;width:2.5rem;min-width:2.5rem;flex:0 0 2.5rem;padding:0.25rem 0;border-radius:0.2rem;font-size:0.75rem;text-align:center;cursor:not-allowed;">${el.stairs ? "" : (el.no || "")}</span>`;
             }
         }
         html += "</div></div>";

@@ -394,16 +394,14 @@ if (!function_exists('seatplanElementTypes')) {
 
 if (!function_exists('seatplanStairsAttr')) {
     /**
-     * Extra attributes for a distance element that is marked as stairs: white with a black
-     * border in every seat plan view. Inline !important so it wins over the views' grey
-     * distance styling. Empty string for a normal distance.
+     * Extra attributes for a distance element: stairs in the event's stairs colour (default
+     * white with a black border), normal distances in the event's distance colour if one is set
+     * (see App\Helpers\SeatPlanStyle). Inline !important so it wins over the views' grey
+     * distance styling. Empty string for a normal distance without custom colour.
      */
-    function seatplanStairsAttr(array $element): string
+    function seatplanStairsAttr(array $element, ?array $event = null): string
     {
-        if (empty($element['stairs'])) {
-            return '';
-        }
-        return ' title="Treppe" data-stairs="1" style="background:#fff !important;border:2px solid #000 !important;color:#000 !important;"';
+        return \App\Helpers\SeatPlanStyle::elementAttr($element, $event);
     }
 }
 

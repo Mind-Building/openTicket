@@ -59,6 +59,7 @@ try {
         'reserved_seats' => (object)$reservedSeats,
         'categories' => $categories,
         'event_dates' => $eventDates,
+        'seatplan_style' => \App\Helpers\SeatPlanStyle::forJs($event),
     ]);
 
 } catch (\Exception $e) {

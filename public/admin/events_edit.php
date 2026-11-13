@@ -56,7 +56,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data['ticket_code_content'] = mb_substr(trim((string)($_POST['ticket_code_content'] ?? '')), 0, 255);
         }
 
-        if (empty($data['name'])) {
+        // Voucher info text, voucher mail image, seat plan colours - only once
+        // database/migrate_event_display.sql has run
+        if ($eventModel->hasDisplayColumns()) {
+            $data['voucher_info_text'] = mb_substr(trim((string)($_POST['voucher_info_text'] ?? '')), 0, 5000);
+            $data['seatplan_distance_color'] = isset($_POST['seatplan_distance_custom'])
+                ? (string)(\App\Helpers\SeatPlanStyle::normalizeColor($_POST['seatplan_distance_color'] ?? '') ?? '')
+                : '';
+            $data['seatplan_distance_border'] = isset($_POST['seatplan_distance_border']) ? 1 : 0;
+            $data['seatplan_stairs_color'] = isset($_POST['seatplan_stairs_custom'])
+                ? (string)(\App\Helpers\SeatPlanStyle::normalizeColor($_POST['seatplan_stairs_color'] ?? '') ?? '')
+                : '';
+            $data['seatplan_stairs_border'] = isset($_POST['seatplan_stairs_border']) ? 1 : 0;
+
+            // Motif next to each voucher in the "Ihr Gutschein" mail (stored relative to public/)
+            $imageDir = __DIR__ . '/../uploads/events/';
+            $oldImage = (string)($event['voucher_email_image'] ?? '');
+            $deleteOldImage = function () use ($oldImage) {
+                if ($oldImage !== '' && str_starts_with($oldImage, 'uploads/events/')) {
+                    $path = __DIR__ . '/../' . $oldImage;
+                    if (is_file($path)) {
+                        @unlink($path);
+                    }
+                }
+            };
+            if (!empty($_FILES['voucher_email_image']) && $_FILES['voucher_email_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+                if (!is_dir($imageDir)) {
+                    @mkdir($imageDir, 0755, true);
+                }
+                $upload = \App\Core\FileUpload::upload($_FILES['voucher_email_image'], $imageDir, 'image');
+                if ($upload['success']) {
+                    $deleteOldImage();
+                    $data['voucher_email_image'] = 'uploads/events/' . basename($upload['path']);
+                } else {
+                    $error = 'Bild-Upload fehlgeschlagen: ' . $upload['error'];
+                }
+            } elseif (isset($_POST['delete_voucher_email_image'])) {
+                $deleteOldImage();
+                $data['voucher_email_image'] = '';
+            }
+        }
+
+        if ($error !== '') {
+            // keep the error from the image upload, nothing saved
+        } elseif (empty($data['name'])) {
             $error = 'Bitte geben Sie einen Namen ein.';
         } else {
             try {
@@ -144,6 +187,102 @@ function renderTicketCodeSection(array $event, int $eventId): string
             </div>';
 }
 
+/**
+ * Voucher info text + motif for the voucher mail, and colours of distances / stairs in the seat plan.
+ */
+function renderDisplaySections(array $event, bool $available): string
+{
+    if (!$available) {
+        return '
+            <div class="alert alert-warning">
+                Gutschein-Infotext, Gutschein-Motiv und Sitzplan-Farben stehen nach dem
+                <a href="' . url('admin/database_update.php') . '">Datenbank-Update</a> zur Verfügung.
+            </div>';
+    }
+
+    $image = (string)($event['voucher_email_image'] ?? '');
+    $imagePreview = $image !== ''
+        ? '<div class="d-flex align-items-center gap-3 mb-2">
+               <img src="' . htmlspecialchars(url($image)) . '" alt="Gutschein-Motiv" style="max-height:120px;max-width:160px;border:1px solid #dee2e6;">
+               <div class="form-check">
+                   <input class="form-check-input" type="checkbox" id="delete_voucher_email_image" name="delete_voucher_email_image">
+                   <label class="form-check-label" for="delete_voucher_email_image">Bild entfernen</label>
+               </div>
+           </div>'
+        : '';
+
+    $style = \App\Helpers\SeatPlanStyle::forEvent($event);
+    $distanceCustom = $style['distance_color'] !== null;
+    $stairsCustom = \App\Helpers\SeatPlanStyle::normalizeColor($event['seatplan_stairs_color'] ?? null) !== null;
+    $globalInfo = trim((string)Config::get('voucher_info_text', ''));
+
+    return '
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-gift"></i> Gutscheine</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="voucher_info_text" class="form-label">Hinweistext beim Gutscheinkauf</label>
+                        <textarea class="form-control" id="voucher_info_text" name="voucher_info_text" rows="3"
+                                  placeholder="' . htmlspecialchars($globalInfo !== '' ? $globalInfo : 'z. B. Bitte weisen Sie die beschenkte Person darauf hin, den Gutschein zeitnah einzulösen.') . '">'
+                                  . htmlspecialchars((string)($event['voucher_info_text'] ?? '')) . '</textarea>
+                        <div class="form-text">
+                            Erscheint auf der Veranstaltungsseite neben „Gutscheine kaufen“ und auf der Gutschein-Kaufseite.
+                            Leer = Text aus den <a href="' . url('admin/settings.php') . '">Einstellungen</a> (Funktionen → Gutschein-Hinweistext)'
+                            . ($globalInfo === '' ? ', dort ist derzeit keiner hinterlegt' : '') . '.
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="voucher_email_image" class="form-label">Motiv für die E-Mail „Ihr Gutschein“</label>
+                        ' . $imagePreview . '
+                        <input type="file" class="form-control" id="voucher_email_image" name="voucher_email_image" accept=".jpg,.jpeg,.png,.gif">
+                        <div class="form-text">
+                            Wird in der Gutschein-Mail neben jedem Gutschein dieser Veranstaltung angezeigt (z. B. das Motiv der Eintrittskarte).
+                            JPG, PNG oder GIF, max. 10 MB – für E-Mails empfiehlt sich ein kleines Bild (ca. 400 px breit).
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-palette"></i> Sitzplan-Darstellung</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6>Abstände</h6>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="seatplan_distance_custom" name="seatplan_distance_custom"' . ($distanceCustom ? ' checked' : '') . '
+                                       onchange="document.getElementById(\'seatplan_distance_color\').disabled = !this.checked">
+                                <label class="form-check-label" for="seatplan_distance_custom">Eigene Farbe</label>
+                                <input type="color" class="form-control form-control-color d-inline-block ms-2 align-middle" id="seatplan_distance_color" name="seatplan_distance_color"
+                                       value="' . htmlspecialchars($style['distance_color'] ?? \App\Helpers\SeatPlanStyle::DEFAULT_DISTANCE_COLOR) . '"' . ($distanceCustom ? '' : ' disabled') . '>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="seatplan_distance_border" name="seatplan_distance_border"' . ($style['distance_border'] ? ' checked' : '') . '>
+                                <label class="form-check-label" for="seatplan_distance_border">Mit schwarzem Rahmen</label>
+                            </div>
+                            <div class="form-text">Ohne eigene Farbe: grau (Standard).</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6>Treppen</h6>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="seatplan_stairs_custom" name="seatplan_stairs_custom"' . ($stairsCustom ? ' checked' : '') . '
+                                       onchange="document.getElementById(\'seatplan_stairs_color\').disabled = !this.checked">
+                                <label class="form-check-label" for="seatplan_stairs_custom">Eigene Farbe</label>
+                                <input type="color" class="form-control form-control-color d-inline-block ms-2 align-middle" id="seatplan_stairs_color" name="seatplan_stairs_color"
+                                       value="' . htmlspecialchars($style['stairs_color']) . '"' . ($stairsCustom ? '' : ' disabled') . '>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="seatplan_stairs_border" name="seatplan_stairs_border"' . ($style['stairs_border'] ? ' checked' : '') . '>
+                                <label class="form-check-label" for="seatplan_stairs_border">Mit schwarzem Rahmen</label>
+                            </div>
+                            <div class="form-text">Ohne eigene Farbe: weiß (Standard).</div>
+                        </div>
+                    </div>
+                    <div class="small text-muted">Gilt für alle Sitzplan-Ansichten (Kunden, Vorverkauf, Belegung, Umbuchen) und den Sitzplan-Editor.</div>
+                </div>
+            </div>';
+}
+
 $pageTitle = 'Veranstaltung bearbeiten: ' . htmlspecialchars($event['name']);
 $showSidebar = true;
 $showHeader = true;
@@ -165,7 +304,7 @@ $content = '
 
 <div class="card">
     <div class="card-body">
-        <form method="POST" action="">
+        <form method="POST" action="" enctype="multipart/form-data">
             ' . \App\Core\Csrf::field() . '
             <div class="mb-3">
                 <label for="name" class="form-label">Name der Veranstaltung <span class="text-danger">*</span></label>
@@ -308,6 +447,8 @@ $content .= '
                     </label>
                 </div>
             </div>
+
+            ' . renderDisplaySections($event, $eventModel->hasDisplayColumns()) . '
 
             <div class="card mb-3">
                 <div class="card-header">

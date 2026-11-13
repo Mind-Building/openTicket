@@ -1,7 +1,7 @@
 <?php
 /**
  * Sale Price Choices
- * Step 3 of admin/presales sell: one price type per seat (Normal / Ermäßigt / FN-Card).
+ * Step 3 of admin/presales sell: one price type per seat (Normal / Ermäßigt / FN-Card / Rabatte).
  * Prices and allowed types come from App\Helpers\TicketPrice, the same rule as PayPal and the ticket.
  */
 
@@ -30,7 +30,7 @@ class SalePriceChoices
             $label = !empty($seat['label'])
                 ? $seat['label']
                 : $seatPlanModel->getSeatDisplayName($eventId, (string)($seat['id'] ?? ''));
-            $choices = TicketPrice::choices($seat, $eventId, $eventDate);
+            $choices = TicketPrice::choices($seat, $eventId, $eventDate, true);
 
             if (empty($choices)) {
                 // Wheelchair companion: always free, nothing to choose
@@ -40,8 +40,9 @@ class SalePriceChoices
                 continue;
             }
 
-            $selected = !empty($seat['is_reduced']) ? TicketPrice::TYPE_REDUCED
-                : (!empty($seat['is_fn_card']) ? TicketPrice::TYPE_FN_CARD : null);
+            $selected = self::discountKey($seat)
+                ?? (!empty($seat['is_reduced']) ? TicketPrice::TYPE_REDUCED
+                : (!empty($seat['is_fn_card']) ? TicketPrice::TYPE_FN_CARD : null));
             if ($selected === null || !isset($choices[$selected])) {
                 $selected = array_key_first($choices);
             }
@@ -50,7 +51,7 @@ class SalePriceChoices
 
             $options = '';
             foreach ($choices as $type => $price) {
-                $name = TicketPrice::typeLabel($type) ?: 'Normal';
+                $name = TicketPrice::choiceLabel((string)$type);
                 $options .= '<option value="' . $type . '" data-price="' . $price . '"' . ($type === $selected ? ' selected' : '') . '>'
                     . htmlspecialchars($name) . ' – ' . self::money($price) . '</option>';
             }
@@ -117,10 +118,14 @@ class SalePriceChoices
             if (!isset($postedTypes[$index])) {
                 continue;
             }
-            $choices = TicketPrice::choices($seat, $eventId, $eventDate);
-            $type = isset($choices[$postedTypes[$index]]) ? $postedTypes[$index] : null;
+            $choices = TicketPrice::choices($seat, $eventId, $eventDate, true);
+            $type = isset($choices[$postedTypes[$index]]) ? (string)$postedTypes[$index] : null;
             $seat['is_reduced'] = $type === TicketPrice::TYPE_REDUCED ? 1 : 0;
             $seat['is_fn_card'] = $type === TicketPrice::TYPE_FN_CARD ? 1 : 0;
+            // Percentage discount: label and percent are stored on the reservation
+            $discount = $type !== null ? (TicketPrice::discounts()[$type] ?? null) : null;
+            $seat['discount_label'] = $discount['label'] ?? null;
+            $seat['discount_percent'] = $discount['percent'] ?? null;
             $seat['fn_card_number'] = null;
             if ($seat['is_fn_card']) {
                 $number = trim((string)($postedFnNumbers[$index] ?? ''));
@@ -163,6 +168,23 @@ class SalePriceChoices
             }
         }
         return $out;
+    }
+
+    /**
+     * Choice key of the discount a seat already carries (e.g. back from a failed submit), or null.
+     */
+    private static function discountKey(array $seat): ?string
+    {
+        $percent = (float)($seat['discount_percent'] ?? 0);
+        if ($percent <= 0) {
+            return null;
+        }
+        foreach (TicketPrice::discounts() as $key => $discount) {
+            if (abs($discount['percent'] - $percent) < 0.001 && $discount['label'] === ($seat['discount_label'] ?? $discount['label'])) {
+                return $key;
+            }
+        }
+        return null;
     }
 
     private static function money(float $amount): string

@@ -319,6 +319,8 @@ class Reservation
                     'is_reduced' => $data['is_reduced'] ?? 0,
                     'is_fn_card' => $data['is_fn_card'] ?? 0,
                     'fn_card_number' => !empty($data['is_fn_card']) ? ($data['fn_card_number'] ?? null) : null,
+                    'discount_label' => $data['discount_label'] ?? null,
+                    'discount_percent' => $data['discount_percent'] ?? null,
                     'is_honor_card' => $data['is_honor_card'] ?? 0,
                     'is_companion' => $data['is_companion'] ?? 0,
                     'voucher_id' => $data['voucher_id'] ?? null
@@ -372,9 +374,11 @@ class Reservation
             // Insert reservation
             // fn_card_number only once database/migrate_fn_card_number.sql has run
             $withFnNumber = $this->hasFnCardNumberColumn();
+            // discount_* only once database/migrate_discounts.sql has run
+            $withDiscount = $this->hasDiscountColumns();
             $sql = "INSERT INTO reservations
-                    (session_id, customer_id, event_id, event_date, seat_identifier, category_id, status_id, is_reduced, is_fn_card, is_honor_card, is_companion, voucher_id" . ($withFnNumber ? ", fn_card_number" : "") . ")
-                    VALUES (:session_id, :customer_id, :event_id, :event_date, :seat_identifier, :category_id, :status_id, :is_reduced, :is_fn_card, :is_honor_card, :is_companion, :voucher_id" . ($withFnNumber ? ", :fn_card_number" : "") . ")";
+                    (session_id, customer_id, event_id, event_date, seat_identifier, category_id, status_id, is_reduced, is_fn_card, is_honor_card, is_companion, voucher_id" . ($withFnNumber ? ", fn_card_number" : "") . ($withDiscount ? ", discount_label, discount_percent" : "") . ")
+                    VALUES (:session_id, :customer_id, :event_id, :event_date, :seat_identifier, :category_id, :status_id, :is_reduced, :is_fn_card, :is_honor_card, :is_companion, :voucher_id" . ($withFnNumber ? ", :fn_card_number" : "") . ($withDiscount ? ", :discount_label, :discount_percent" : "") . ")";
 
             $params = [
                 ':session_id' => $data['session_id'],
@@ -392,6 +396,9 @@ class Reservation
             ];
             if ($withFnNumber) {
                 $params[':fn_card_number'] = !empty($data['is_fn_card']) && !empty($data['fn_card_number']) ? $data['fn_card_number'] : null;
+            }
+            if ($withDiscount) {
+                [$params[':discount_label'], $params[':discount_percent']] = self::discountValues($data);
             }
             $stmt = $connection->prepare($sql);
             $stmt->execute($params);
@@ -524,6 +531,11 @@ class Reservation
             $setClause[] = "fn_card_number = :fn_card_number";
             $params[':fn_card_number'] = $data['fn_card_number'] !== '' ? $data['fn_card_number'] : null;
         }
+        if ((array_key_exists('discount_percent', $data) || array_key_exists('discount_label', $data)) && $this->hasDiscountColumns()) {
+            $setClause[] = "discount_label = :discount_label";
+            $setClause[] = "discount_percent = :discount_percent";
+            [$params[':discount_label'], $params[':discount_percent']] = self::discountValues($data);
+        }
         if (isset($data['is_honor_card'])) {
             $setClause[] = "is_honor_card = :is_honor_card";
             $params[':is_honor_card'] = $data['is_honor_card'];
@@ -549,6 +561,37 @@ class Reservation
         return true;
     }
     
+    /** @var bool|null Whether reservations.discount_percent exists (database/migrate_discounts.sql) */
+    private static ?bool $discountColumns = null;
+
+    /**
+     * Whether the discount columns exist. Until the migration has run, no percentage discount
+     * is offered (see TicketPrice::discounts() callers) and nothing is stored.
+     */
+    public function hasDiscountColumns(): bool
+    {
+        if (self::$discountColumns === null) {
+            self::$discountColumns = (bool)$this->db->query("SHOW COLUMNS FROM reservations LIKE 'discount_percent'")->fetch();
+        }
+        return self::$discountColumns;
+    }
+
+    /**
+     * Normalised [label, percent] of a percentage discount; [null, null] when there is none
+     * (companions never get one).
+     *
+     * @return array{0: ?string, 1: ?float}
+     */
+    public static function discountValues(array $data): array
+    {
+        $percent = round((float)($data['discount_percent'] ?? 0), 2);
+        if (!empty($data['is_companion']) || $percent <= 0 || $percent > 100) {
+            return [null, null];
+        }
+        $label = mb_substr(trim((string)($data['discount_label'] ?? '')), 0, 50);
+        return [$label !== '' ? $label : null, $percent];
+    }
+
     /** @var bool|null Whether reservations.fn_card_number exists (database/migrate_fn_card_number.sql) */
     private static ?bool $fnCardNumberColumn = null;
 

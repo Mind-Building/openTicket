@@ -161,10 +161,20 @@ $pageTitle = htmlspecialchars($event['name']);
                                 <h5 class="mb-0"><i class="bi bi-gift"></i> Gutscheine</h5>
                             </div>
                             <div class="card-body">
-                                <p class="text-muted">Sie können auch Gutscheine für diese Veranstaltung erwerben.</p>
-                                <a href="<?= url('vouchers.php?event_id=' . $eventId) ?>" class="btn btn-info">
-                                    <i class="bi bi-gift"></i> Gutscheine kaufen
-                                </a>
+                                <?php $voucherInfo = Event::voucherInfoText($event); ?>
+                                <div class="row g-3">
+                                    <div class="<?= $voucherInfo !== '' ? 'col-lg-6' : 'col-12' ?>">
+                                        <p class="text-muted">Sie können auch Gutscheine für diese Veranstaltung erwerben.</p>
+                                        <a href="<?= url('vouchers.php?event_id=' . $eventId) ?>" class="btn btn-info">
+                                            <i class="bi bi-gift"></i> Gutscheine kaufen
+                                        </a>
+                                    </div>
+                                    <?php if ($voucherInfo !== ''): ?>
+                                        <div class="col-lg-6">
+                                            <div class="fw-bold small"><?= nl2br(htmlspecialchars($voucherInfo)) ?></div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>

@@ -46,8 +46,8 @@ try {
             $priceInfo = \App\Helpers\TicketPrice::forReservation($res);
             $ticketPrice = $priceInfo['price'];
             $res['ticket_price'] = $ticketPrice;
-            // Normal / Ermäßigt / FN-Card / Generalprobe / Begleitperson
-            $res['price_type'] = \App\Helpers\TicketPrice::typeLabel($priceInfo['type']) ?: 'Normal';
+            // Normal / Ermäßigt / FN-Card / Rabatt (z. B. Gruppe 10 %) / Generalprobe / Begleitperson
+            $res['price_type'] = \App\Helpers\TicketPrice::label($priceInfo) ?: 'Normal';
             $orderTotal += $ticketPrice;
 
             $reservations[] = $res;

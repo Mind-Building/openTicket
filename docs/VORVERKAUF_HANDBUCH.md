@@ -106,6 +106,9 @@ Je nach Systemkonfiguration stehen folgende Optionen zur Verfügung:
 | Gutschein | Bezahlung mit Gutschein-Code |
 | Ermäßigung / FN-Card | Oben unter **Plätze & Preise** pro Platz wählbar (Normal / Ermäßigt / FN-Card) mit Live-Gesamtsumme. Bei *FN-Card* erscheint ein Feld für die **8-stellige Kartennummer** (Pflicht); pro Karte sind je Veranstaltung nur so viele Tickets möglich wie eingestellt (Standard 2), sonst erscheint ein Hinweis. Ist keine Ermäßigung möglich, steht dort der Grund (z. B. „in den Einstellungen deaktiviert", „für diese Veranstaltung nicht freigegeben" oder „Kategorie ohne Ermäßigungspreis"). |
 | FN-Card | Rabatt für FN-Card-Inhaber |
+| Rabatte (z. B. 50 %, Gruppe 10 %, Gruppe 15 %) | Ebenfalls unter **Plätze & Preise** pro Platz wählbar, wenn der Admin sie freigeschaltet hat. Prozent-Rabatt auf den Normalpreis; die Bezeichnung (z. B. „Gruppe 10 %") wird aufs Ticket gedruckt und steht in den Bestelldetails. Bei Gruppen einfach für jeden Platz den Gruppenrabatt wählen – die Gesamtsumme aktualisiert sich sofort. |
+
+> **Reservierungsmail:** Bei Reservierungen enthält die Mail „Ihre Reservierung" jetzt die Preise je Platz und die **Gesamtsumme** – praktisch bei Gruppenreservierungen.
 
 > Welche Optionen verfügbar sind, legt der Admin in den Einstellungen fest.
 

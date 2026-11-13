@@ -80,6 +80,8 @@ class SeatPlanPdfGenerator
             }
             return [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
         };
+        // Distance / stairs colours of the event (Veranstaltung bearbeiten → Sitzplan-Darstellung)
+        $planStyle = \App\Helpers\SeatPlanStyle::forEvent($event);
 
         // ── Pass 1: normalise the plan + count seats ─────────────────────────
         // Widths are expressed as multiples of the (yet unknown) seat size so
@@ -249,12 +251,17 @@ class SeatPlanPdfGenerator
 
             foreach ($entry['cells'] as $cell) {
                 if ($cell['kind'] === 'distance') {
-                    if (!empty($cell['stairs'])) {
-                        // Stairs: white with black border, same size as a seat
-                        $pdf->SetFillColor(255, 255, 255);
+                    // Colours per event (SeatPlanStyle); black/white print keeps the defaults
+                    $isStairs = !empty($cell['stairs']);
+                    $fill = $isStairs ? ($bw ? '#ffffff' : $planStyle['stairs_color']) : ($bw ? null : $planStyle['distance_color']);
+                    $border = $isStairs ? ($bw || $planStyle['stairs_border']) : (!$bw && $planStyle['distance_border']);
+                    if ($fill !== null || $border) {
+                        // Stairs (default white with black border) / coloured distance, same size as a seat
+                        [$fr, $fg, $fb] = $hexToRgb($fill ?? '#ffffff');
+                        $pdf->SetFillColor($fr, $fg, $fb);
                         $pdf->SetDrawColor(0, 0, 0);
                         $pdf->SetLineWidth(max(0.2, $S * 0.08));
-                        $pdf->Rect($rowX, $currentY, $S, $S, 'DF');
+                        $pdf->Rect($rowX, $currentY, $S, $S, $border ? ($fill !== null ? 'DF' : 'D') : 'F');
                         $pdf->SetLineWidth(0.1);
                     }
                     $rowX += $DIST * $S;
