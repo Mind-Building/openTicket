@@ -840,13 +840,13 @@ $content = '
                                        ' . (($configArray['fn_card_active']['value'] ?? '0') == '1' ? 'checked' : '') . '>
                                 <label class="form-check-label" for="config_fn_card_active">FN-Karte aktivieren</label>
                             </div>
-                            <div class="row g-2 mb-3 ms-4">
-                                <div class="col-sm-6 col-lg-4">
+                            <div class="mb-3 ms-4" style="max-width: 360px;">
+                                <div class="mb-2">
                                     <label for="fn_card_discount_percent" class="form-label small mb-0">FN-Karte: Rabatt in %</label>
                                     <input type="number" class="form-control form-control-sm" id="fn_card_discount_percent" name="fn_card_discount_percent" min="0" max="100" step="0.5"
                                            value="' . htmlspecialchars((string)round((float)($configArray['fn_card_factor']['value'] ?? 0.1) * 100, 2)) . '">
                                 </div>
-                                <div class="col-sm-6 col-lg-4">
+                                <div class="mb-2">
                                     <label for="config_max_fn_card" class="form-label small mb-0">FN-Karte: max. Tickets pro Karte und Veranstaltung</label>
                                     <input type="number" class="form-control form-control-sm" id="config_max_fn_card" name="config_max_fn_card" min="1" step="1"
                                            value="' . htmlspecialchars((string)(int)($configArray['max_fn_card']['value'] ?? 2)) . '">
