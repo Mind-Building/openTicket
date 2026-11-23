@@ -147,9 +147,10 @@ function logMatchesReservationIds(array $context, string $rawLine, array $ids): 
     return false;
 }
 
-// Reasons in a seats_released entry that mark an automatic, unattended release.
+// Reasons in a seats_released entry that mark a release by the system or by staff
+// (automatic cleanup, or the cart deleted by hand in presales/admin).
 // A PayPal error followed by one of these left no stale reservation behind.
-const AUTO_RELEASE_REASONS = ['cron_cleanup', 'presales_cleanup', 'timeout'];
+const AUTO_RELEASE_REASONS = ['cron_cleanup', 'presales_cleanup', 'timeout', 'presales_deleted', 'admin_deleted'];
 
 // --- A logged PayPal client error is benign if the session was settled afterwards ---
 // PayPal client-side errors (declined cards, cancellations, SDK errors) are logged

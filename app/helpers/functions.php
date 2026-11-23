@@ -298,6 +298,20 @@ if (!function_exists('logPresalesLogout')) {
     }
 }
 
+if (!function_exists('logPartnerLogin')) {
+    function logPartnerLogin(string $userId, string $username, bool $success, ?string $reason = null): void
+    {
+        LoggerService::logPartnerLogin($userId, $username, $success, $reason);
+    }
+}
+
+if (!function_exists('logPartnerLogout')) {
+    function logPartnerLogout(string $userId, string $username): void
+    {
+        LoggerService::logPartnerLogout($userId, $username);
+    }
+}
+
 if (!function_exists('logPresalesSale')) {
     function logPresalesSale(string $userId, string $customerName, float $amount, int $ticketCount, string $paymentMethod, array $details = []): void
     {
@@ -487,7 +501,7 @@ if (!function_exists('reservationStatusLabel')) {
             7  => 'Gedruckt (Abendkasse)',
             8  => 'Bezahlt (Gutschein)',
             9  => 'Gutschein eingelöst',
-            10 => 'FN-Karte',
+            10 => 'Barverkauf Partner',
             11 => 'VIP',
             20 => 'PayPal gestartet',
             91 => 'FEHLER: PayPal ohne Kundendaten',

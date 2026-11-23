@@ -6,9 +6,27 @@
  * to free up seats that were added to cart but not purchased within 15 minutes.
  *
  * Usage: php app/scripts/cleanup_expired_reservations.php
+ * HTTP (Hoster ohne CLI-Cron): https://domain.de/cron_cleanup.php?secret=<CRON_SECRET>
+ *   (public/cron_cleanup.php prüft das Secret und bindet dieses Skript ein)
  */
 
 require_once __DIR__ . '/../bootstrap.php';
+
+/**
+ * Beendet den Lauf. Per HTTP (cron_cleanup.php) zusätzlich eine kurze JSON-Antwort,
+ * damit der URL-Cron des Hosters Erfolg/Fehler am Statuscode erkennt.
+ */
+function finishCleanup(int $exitCode, array $result): never
+{
+    if (PHP_SAPI !== 'cli') {
+        http_response_code($exitCode === 0 ? 200 : 500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => $exitCode === 0] + $result, JSON_UNESCAPED_UNICODE);
+    }
+    exit($exitCode);
+}
+
+$cleanupSource = PHP_SAPI === 'cli' ? 'cleanup_expired_reservations.php' : 'cron_cleanup.php (HTTP)';
 
 use App\Core\Database;
 use App\Models\Event;
@@ -54,12 +72,12 @@ try {
 
         LoggerService::logAdmin('cron_cart_cleanup', [
             'deleted_reservations' => $deletedReservations,
-            'source'               => 'cleanup_expired_reservations.php',
+            'source'               => $cleanupSource,
         ]);
     }
 
     // Expired vouchers
-    $sqlVouchers = "SELECT id, voucher_code, purchase_intent, code, session_id FROM vouchers
+    $sqlVouchers = "SELECT id, voucher_code, purchase_intent, session_id FROM vouchers
                     WHERE status_id = 1
                     AND updated_at < DATE_SUB(NOW(), INTERVAL 20 MINUTE)";
     $stmtVouchers = $db->prepare($sqlVouchers);
@@ -70,7 +88,7 @@ try {
     $resetVouchers = 0;
 
     foreach ($expiredVouchers as $voucher) {
-        $code = $voucher['voucher_code'] ?? $voucher['code'] ?? (string)$voucher['id'];
+        $code = $voucher['voucher_code'] ?? (string)$voucher['id'];
         if (($voucher['purchase_intent'] ?? 'buy') === 'buy') {
             $voucherModel->delete((int)$voucher['id']);
             LoggerService::logVoucherStatusChange('admin', $code, 1, null, 'cron_cleanup', [
@@ -94,7 +112,7 @@ try {
         LoggerService::logAdmin('cron_voucher_cleanup', [
             'deleted_vouchers' => $deletedVouchers,
             'reset_vouchers'   => $resetVouchers,
-            'source'           => 'cleanup_expired_reservations.php',
+            'source'           => $cleanupSource,
         ]);
     }
 
@@ -107,7 +125,7 @@ try {
             'name'      => $event['name'],
             'last_date' => $event['last_date'],
             'reason'    => 'Alle Termine liegen in der Vergangenheit',
-            'source'    => 'cleanup_expired_reservations.php',
+            'source'    => $cleanupSource,
         ]);
     }
 
@@ -118,17 +136,22 @@ try {
         if (time() - $lastHeartbeat >= 3600) {
             LoggerService::logAdmin('cron_heartbeat', [
                 'message' => 'Cleanup läuft, keine abgelaufenen Einträge',
-                'source'  => 'cleanup_expired_reservations.php',
+                'source'  => $cleanupSource,
             ]);
             file_put_contents($heartbeatFile, (string)time());
         }
     }
 
-    exit(0);
+    finishCleanup(0, [
+        'deleted_reservations' => $deletedReservations,
+        'deleted_vouchers'     => $deletedVouchers,
+        'reset_vouchers'       => $resetVouchers,
+        'deactivated_events'   => count($deactivatedEvents),
+    ]);
 } catch (\Exception $e) {
     LoggerService::logAdmin('cron_cleanup_error', [
         'error'  => $e->getMessage(),
-        'source' => 'cleanup_expired_reservations.php',
+        'source' => $cleanupSource,
     ]);
-    exit(1);
+    finishCleanup(1, ['error' => 'Bereinigung fehlgeschlagen, Details im Admin-Log (cron_cleanup_error).']);
 }

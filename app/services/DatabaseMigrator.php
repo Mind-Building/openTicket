@@ -123,6 +123,21 @@ class DatabaseMigrator
                 'description' => 'Prozent-Rabatte im Verkauf (50 %, Gruppenrabatte)',
                 'applied' => fn() => $this->columnExists('reservations', 'discount_percent'),
             ],
+            [
+                'id' => 'partner_role',
+                'file' => 'migrate_partner_role.sql',
+                'description' => 'Rolle „Externe Partner“ (Verkäufer je Reservierung, Partner-Abrechnung)',
+                'applied' => fn() => str_contains($this->columnType('users', 'role'), "'partner'")
+                    && $this->columnExists('users', 'partner_permissions')
+                    && $this->columnExists('reservations', 'sold_by_user_id')
+                    && $this->columnExists('reservations', 'partner_settled_at'),
+            ],
+            [
+                'id' => 'users_email_nullable',
+                'file' => 'migrate_users_email_nullable.sql',
+                'description' => 'Benutzer ohne E-Mail-Adresse anlegen',
+                'applied' => fn() => ($this->columnInfo('users', 'email')['IS_NULLABLE'] ?? '') === 'YES',
+            ],
         ];
     }
 
@@ -355,7 +370,7 @@ class DatabaseMigrator
     private function columnInfo(string $table, string $column): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT COLUMN_TYPE, CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+            'SELECT COLUMN_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
         );
         $stmt->execute([$this->dbName, $table, $column]);

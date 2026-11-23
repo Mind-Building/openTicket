@@ -42,6 +42,7 @@ $_navMap = [
     'reports_ticket_overview.php'=> 'reports.php',
     'reports_evaluations.php'    => 'reports.php',
     'reports_rebookings.php'     => 'reports.php',
+    'reports_partners.php'       => 'reports.php',
     'logs.php'                   => 'logs.php',
     'email_failures.php'         => 'logs.php',
     'settings.php'               => 'settings.php',

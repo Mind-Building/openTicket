@@ -62,7 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'email_enabled', 'email_use_smtp', 'email_smtp_secure',
             'customer_allow_paypal', 'customer_allow_reservation', 'customer_allow_cash', 'customer_allow_vouchers',
             'admin_allow_paypal', 'admin_allow_reservation', 'admin_allow_cash', 'admin_allow_vouchers',
-            'presales_allow_paypal', 'presales_allow_reservation', 'presales_allow_cash', 'presales_allow_vouchers'];
+            'presales_allow_paypal', 'presales_allow_reservation', 'presales_allow_cash', 'presales_allow_vouchers',
+            'partner_role_active'];
         
         // First, handle all boolean checkboxes (even if not in POST)
         foreach ($booleanKeys as $configKey) {
@@ -118,12 +119,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Config::set('discounts', json_encode($discounts, JSON_UNESCAPED_UNICODE), 'string');
         }
 
+        // External partners: features this installation allows (JSON list of Permission keys)
+        if (isset($_POST['partner_features_submitted'])) {
+            $partnerFeatures = array_values(array_intersect(
+                array_map('strval', (array)($_POST['partner_features'] ?? [])),
+                array_keys(\App\Core\Permission::FEATURES)
+            ));
+            Config::set('partner_features', $partnerFeatures, 'json');
+        }
+
         $message = 'Einstellungen erfolgreich gespeichert.';
         $messageType = 'success';
     } catch (\Exception $e) {
         $message = 'Fehler beim Speichern: ' . $e->getMessage();
         $messageType = 'danger';
     }
+}
+
+/**
+ * Settings block for the role "Externe Partner" (App\Core\Permission).
+ */
+function renderPartnerSettings(array $configArray): string
+{
+    $html = '<h6 class="mt-4 mb-2"><i class="bi bi-shop"></i> Externe Partner</h6>';
+    if (!\App\Core\Permission::partnerRoleAvailable()) {
+        return $html . '<div class="alert alert-warning small">Für die Rolle „Externe Partner" fehlt noch das Datenbank-Update (<em>Einstellungen → Datenbank-Update</em>).</div>';
+    }
+    $active = ($configArray['partner_role_active']['value'] ?? '0') == '1';
+    $enabled = \App\Core\Permission::installFeatures();
+    $features = '';
+    foreach (\App\Core\Permission::FEATURES as $key => [$label, $description]) {
+        $features .= '
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="partner_features[]" value="' . $key . '" id="spf_' . $key . '"'
+                        . (in_array($key, $enabled, true) ? ' checked' : '') . '>
+                    <label class="form-check-label" for="spf_' . $key . '">' . htmlspecialchars($label)
+                        . '<div class="small text-muted">' . htmlspecialchars($description) . '</div></label>
+                </div>';
+    }
+    return $html . '
+            <div class="mb-2 form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="config_partner_role_active" name="config_partner_role_active" value="1"' . ($active ? ' checked' : '') . '>
+                <label class="form-check-label" for="config_partner_role_active">Rolle „Externe Partner" aktivieren</label>
+                <div class="form-text">Externe Verkaufsstellen verkaufen/reservieren Karten gegen Bargeld über einen eigenen Zugang. Benutzer legen Sie unter <em>Benutzer</em> mit der Rolle „Externer Partner" an, die Abrechnung finden Sie unter <em>Berichte → Abrechnung Partner</em>.</div>
+            </div>
+            <input type="hidden" name="partner_features_submitted" value="1">
+            <div class="ms-4 mb-3">
+                <div class="small fw-semibold mb-1">Erlaubte Funktionen für Partner (je Partner weiter einschränkbar):</div>
+                ' . $features . '
+            </div>';
 }
 
 /**
@@ -813,7 +857,7 @@ $content = '
                         </div>
                     </div>
                     <div class="alert alert-info mt-3">
-                        <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Mindestens eine Methode pro Rolle sollte aktiviert sein.
+                        <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Mindestens eine Methode pro Rolle sollte aktiviert sein. Was externe Partner dürfen (Barverkauf, Reservieren, Gutschein), steht im Tab <em>Funktionen → Externe Partner</em>.
                     </div>
                 </div>
 
@@ -852,6 +896,7 @@ $content = '
                                            value="' . htmlspecialchars((string)(int)($configArray['max_fn_card']['value'] ?? 2)) . '">
                                 </div>
                             </div>
+                            ' . renderPartnerSettings($configArray) . '
                         </div>
                         <div class="col-md-6">
                             ' . renderDiscountSettings($configArray) . '

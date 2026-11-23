@@ -5,7 +5,9 @@
  * Uses $_SERVER['PHP_SELF'] to determine the active nav item.
  */
 
+use App\Core\Auth;
 use App\Core\Config;
+use App\Core\Permission;
 
 // Map current filename → which top-level nav entry to highlight
 $_navCurrent = basename($_SERVER['PHP_SELF']);
@@ -19,6 +21,7 @@ $_navMap = [
     'vouchers.php'         => 'vouchers.php',
     'box_office.php'       => 'box_office.php',
     'checkout_success.php' => 'sell.php',
+    'my_sales.php'         => 'my_sales.php',
     'documentation.php'    => 'documentation.php',
 ];
 $_navActive = $_navMap[$_navCurrent] ?? '';
@@ -32,6 +35,20 @@ $_navItem = function (string $file, string $icon, string $label) use ($_navActiv
         . '        </a>' . "\n"
         . '    </li>' . "\n";
 };
+
+// External partner (role partner): only the parts enabled for this user
+if (Auth::isPartner()) {
+    echo '<li class="nav-item small text-uppercase px-3 pt-2 pb-1" style="opacity:.7">Externer Partner</li>' . "\n";
+    echo $_navItem('index.php', 'bi-speedometer2', 'Übersicht');
+    echo $_navItem('sell.php', 'bi-cart-plus', Permission::can(Permission::RESERVE) ? 'Verkauf / Reservierung' : 'Karten verkaufen');
+    if (Permission::can(Permission::OWN_ORDERS)) {
+        echo $_navItem('my_sales.php', 'bi-receipt', 'Meine Verkäufe');
+    }
+    if (Permission::can(Permission::OCCUPANCY)) {
+        echo $_navItem('seatplan_occupancy.php', 'bi-grid-3x3-gap-fill', 'Sitzplan-Belegung');
+    }
+    return;
+}
 
 $_vouchersActive = Config::get('voucher_active', false) && Config::get('presales_allow_vouchers', true);
 

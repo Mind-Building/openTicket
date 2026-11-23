@@ -8,7 +8,7 @@ use App\Models\Reservation;
 use App\Models\Event;
 use App\Models\SeatPlan;
 
-Auth::requirePresales();
+Auth::requireSalesStaff();
 Session::start();
 
 $reservationModel = new Reservation();
@@ -27,7 +27,8 @@ $emailStatus = $_GET['email'] ?? null;
 $reservations = [];
 foreach ($reservationIds as $id) {
     $reservation = $reservationModel->getById($id);
-    if ($reservation) {
+    // External partners only see their own sales
+    if ($reservation && (!Auth::isPartner() || (int)($reservation['sold_by_user_id'] ?? 0) === (int)Auth::id())) {
         $reservations[] = $reservation;
     }
 }
@@ -37,7 +38,7 @@ if (empty($reservations)) {
     $sessionReservations = $reservationModel->getAllBySession(session_id());
     // Get the most recent ones (status 3 or 4)
     $reservations = array_filter($sessionReservations, function($r) {
-        return (int)$r['status_id'] === 3 || (int)$r['status_id'] === 4;
+        return in_array((int)$r['status_id'], [3, 4, 10], true);
     });
     // Sort by created_at DESC
     usort($reservations, function($a, $b) {
@@ -100,7 +101,8 @@ if ($emailStatus === 'sent') {
 
 $ticketDownloadUrl = '';
 $showPrintDialog = false;
-if (!empty($reservations) && (int)$reservations[0]['status_id'] === 4) {
+// Paid at the presales office (4) or cash sale by an external partner (10) – print now
+if (!empty($reservations) && in_array((int)$reservations[0]['status_id'], [4, 10], true)) {
     $reservationIdsParam = implode(',', array_column($reservations, 'id'));
     $token = generateTicketDownloadToken(array_column($reservations, 'id'));
     $ticketDownloadUrl = url('api/ticket_download.php?reservation_ids=' . $reservationIdsParam . '&token=' . $token);
@@ -207,10 +209,10 @@ if (empty($reservations)) {
     }
     
     $content .= '
-                    <div class="btn-group" role="group">
+                    <div class="btn-group" role="group">' . (\App\Core\Permission::can(\App\Core\Permission::OWN_ORDERS) ? '
                         <a href="' . url('presales/reservations.php') . '" class="btn btn-outline-primary">
-                            <i class="bi bi-list"></i> Zu den Reservierungen
-                        </a>
+                            <i class="bi bi-list"></i> ' . (Auth::isPartner() ? 'Meine Verkäufe' : 'Zu den Reservierungen') . '
+                        </a>' : '') . '
                         <a href="' . url('presales/sell.php') . '" class="btn btn-outline-secondary">
                             <i class="bi bi-cart-plus"></i> Neue Bestellung
                         </a>

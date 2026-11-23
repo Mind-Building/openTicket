@@ -15,7 +15,7 @@ Session::start();
 
 header('Content-Type: application/json');
 
-if (!Auth::isPresales() && !Auth::isAdmin()) {
+if (!Auth::isSalesStaff() && !Auth::isAdmin()) {
     echo json_encode(['success' => false, 'error' => 'Nicht autorisiert']);
     exit;
 }
@@ -32,14 +32,22 @@ try {
         echo json_encode(['success' => false, 'error' => 'Fehlende Daten']);
         exit;
     }
+    // External partners only for the events they may sell for
+    if (!\App\Core\Permission::canAccessEvent($eventId)) {
+        echo json_encode(['success' => false, 'error' => 'Für diese Veranstaltung haben Sie keine Berechtigung.']);
+        exit;
+    }
     
     $reservationModel = new Reservation();
     
     // Find the reservation for this seat
     $db = \App\Core\Database::getInstance();
+    // External partners may only free seats of their own (current) cart
+    $ownOnly = Auth::isPartner();
     $stmt = $db->query(
-        "SELECT id, status_id FROM reservations WHERE seat_identifier = :seat AND event_date = :date AND status_id = 1",
-        ['seat' => $seatIdentifier, 'date' => $eventDate]
+        "SELECT id, status_id FROM reservations WHERE seat_identifier = :seat AND event_date = :date AND status_id = 1"
+            . ($ownOnly ? " AND session_id = :sid" : ""),
+        ['seat' => $seatIdentifier, 'date' => $eventDate] + ($ownOnly ? ['sid' => session_id()] : [])
     );
     $existing = $stmt->fetch();
     

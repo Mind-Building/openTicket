@@ -323,7 +323,8 @@ class Reservation
                     'discount_percent' => $data['discount_percent'] ?? null,
                     'is_honor_card' => $data['is_honor_card'] ?? 0,
                     'is_companion' => $data['is_companion'] ?? 0,
-                    'voucher_id' => $data['voucher_id'] ?? null
+                    'voucher_id' => $data['voucher_id'] ?? null,
+                    'sold_by_user_id' => $data['sold_by_user_id'] ?? null,
                 ]);
                 return $reservationId;
             } else {
@@ -376,9 +377,11 @@ class Reservation
             $withFnNumber = $this->hasFnCardNumberColumn();
             // discount_* only once database/migrate_discounts.sql has run
             $withDiscount = $this->hasDiscountColumns();
+            // sold_by_user_id only once database/migrate_partner_role.sql has run
+            $withSeller = $this->hasSellerColumns();
             $sql = "INSERT INTO reservations
-                    (session_id, customer_id, event_id, event_date, seat_identifier, category_id, status_id, is_reduced, is_fn_card, is_honor_card, is_companion, voucher_id" . ($withFnNumber ? ", fn_card_number" : "") . ($withDiscount ? ", discount_label, discount_percent" : "") . ")
-                    VALUES (:session_id, :customer_id, :event_id, :event_date, :seat_identifier, :category_id, :status_id, :is_reduced, :is_fn_card, :is_honor_card, :is_companion, :voucher_id" . ($withFnNumber ? ", :fn_card_number" : "") . ($withDiscount ? ", :discount_label, :discount_percent" : "") . ")";
+                    (session_id, customer_id, event_id, event_date, seat_identifier, category_id, status_id, is_reduced, is_fn_card, is_honor_card, is_companion, voucher_id" . ($withFnNumber ? ", fn_card_number" : "") . ($withDiscount ? ", discount_label, discount_percent" : "") . ($withSeller ? ", sold_by_user_id" : "") . ")
+                    VALUES (:session_id, :customer_id, :event_id, :event_date, :seat_identifier, :category_id, :status_id, :is_reduced, :is_fn_card, :is_honor_card, :is_companion, :voucher_id" . ($withFnNumber ? ", :fn_card_number" : "") . ($withDiscount ? ", :discount_label, :discount_percent" : "") . ($withSeller ? ", :sold_by_user_id" : "") . ")";
 
             $params = [
                 ':session_id' => $data['session_id'],
@@ -399,6 +402,9 @@ class Reservation
             }
             if ($withDiscount) {
                 [$params[':discount_label'], $params[':discount_percent']] = self::discountValues($data);
+            }
+            if ($withSeller) {
+                $params[':sold_by_user_id'] = !empty($data['sold_by_user_id']) ? (int)$data['sold_by_user_id'] : null;
             }
             $stmt = $connection->prepare($sql);
             $stmt->execute($params);
@@ -548,7 +554,11 @@ class Reservation
             $setClause[] = "voucher_id = :voucher_id";
             $params[':voucher_id'] = $data['voucher_id'];
         }
-        
+        if (isset($data['sold_by_user_id']) && $this->hasSellerColumns()) {
+            $setClause[] = "sold_by_user_id = :sold_by_user_id";
+            $params[':sold_by_user_id'] = (int)$data['sold_by_user_id'];
+        }
+
         if (empty($setClause)) {
             return false; // No fields to update
         }
@@ -561,6 +571,142 @@ class Reservation
         return true;
     }
     
+    /**
+     * Sales (no cart rows) with their seller, for "Meine Verkäufe" and the partner settlement report.
+     *
+     * Filters: sold_by_user_id (int), partners_only (bool), status_ids (int[]),
+     *          from / to (Y-m-d, on order_date), settled ('open' | 'settled'), event_id (int)
+     *
+     * @return array Rows with event_name, first_name, last_name, email, seller_name, seller_role
+     */
+    public function getSellerSales(array $filters = []): array
+    {
+        if (!$this->hasSellerColumns()) {
+            return [];
+        }
+        $sql = "SELECT r.*, e.name AS event_name, e.show_start_time AS event_time,
+                       c.first_name, c.last_name, c.email,
+                       u.username AS seller_name, u.role AS seller_role
+                FROM reservations r
+                JOIN users u ON u.id = r.sold_by_user_id
+                LEFT JOIN events e ON e.id = r.event_id
+                LEFT JOIN customers c ON c.id = r.customer_id
+                WHERE r.status_id >= 2";
+        $params = [];
+        if (!empty($filters['sold_by_user_id'])) {
+            $sql .= " AND r.sold_by_user_id = :seller";
+            $params[':seller'] = (int)$filters['sold_by_user_id'];
+        }
+        if (!empty($filters['partners_only'])) {
+            $sql .= " AND u.role = 'partner'";
+        }
+        if (!empty($filters['status_ids'])) {
+            $ids = array_values(array_map('intval', (array)$filters['status_ids']));
+            $sql .= " AND r.status_id IN (" . implode(',', $ids) . ")";
+        }
+        if (!empty($filters['event_id'])) {
+            $sql .= " AND r.event_id = :event_id";
+            $params[':event_id'] = (int)$filters['event_id'];
+        }
+        if (!empty($filters['from'])) {
+            $sql .= " AND r.order_date >= :from";
+            $params[':from'] = $filters['from'] . ' 00:00:00';
+        }
+        if (!empty($filters['to'])) {
+            $sql .= " AND r.order_date <= :to";
+            $params[':to'] = $filters['to'] . ' 23:59:59';
+        }
+        if (($filters['settled'] ?? null) === 'open') {
+            $sql .= " AND r.partner_settled_at IS NULL";
+        } elseif (($filters['settled'] ?? null) === 'settled') {
+            $sql .= " AND r.partner_settled_at IS NOT NULL";
+        }
+        $sql .= " ORDER BY r.order_date DESC, r.id";
+        return $this->db->query($sql, $params)->fetchAll();
+    }
+
+    /**
+     * Group sale rows (from getSellerSales) into orders – same grouping as getGrouped():
+     * session + customer + event + date. Each order carries its rows, ids and total price.
+     */
+    public static function groupSales(array $rows): array
+    {
+        $orders = [];
+        foreach ($rows as $row) {
+            $key = $row['session_id'] . '|' . ($row['customer_id'] ?? '') . '|' . $row['event_id'] . '|' . $row['event_date'] . '|' . $row['sold_by_user_id'];
+            if (!isset($orders[$key])) {
+                $orders[$key] = [
+                    'key'          => $key,
+                    'event_id'     => (int)$row['event_id'],
+                    'event_name'   => $row['event_name'] ?? '',
+                    'event_date'   => $row['event_date'],
+                    'order_date'   => $row['order_date'],
+                    'customer'     => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+                    'seller_id'    => (int)$row['sold_by_user_id'],
+                    'seller_name'  => $row['seller_name'] ?? '',
+                    'status_id'    => (int)$row['status_id'],
+                    'ids'          => [],
+                    'rows'         => [],
+                    'total'        => 0.0,
+                    'settled_at'   => $row['partner_settled_at'] ?? null,
+                    'all_settled'  => true,
+                    'any_settled'  => false,
+                ];
+            }
+            $o = &$orders[$key];
+            $o['ids'][] = (int)$row['id'];
+            $o['rows'][] = $row;
+            $o['total'] += \App\Helpers\TicketPrice::forReservation($row)['price'];
+            if ($row['order_date'] < $o['order_date']) {
+                $o['order_date'] = $row['order_date'];
+            }
+            $settled = !empty($row['partner_settled_at']);
+            $o['all_settled'] = $o['all_settled'] && $settled;
+            $o['any_settled'] = $o['any_settled'] || $settled;
+            if ($settled && ($o['settled_at'] === null || $row['partner_settled_at'] > $o['settled_at'])) {
+                $o['settled_at'] = $row['partner_settled_at'];
+            }
+            unset($o);
+        }
+        return array_values($orders);
+    }
+
+    /**
+     * Mark partner cash sales (status 10) as settled. Only unsettled rows are touched.
+     *
+     * @return int Number of rows marked
+     */
+    public function markPartnerSettled(array $reservationIds): int
+    {
+        $ids = array_values(array_filter(array_map('intval', $reservationIds)));
+        if (empty($ids) || !$this->hasSellerColumns()) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->getConnection()->prepare(
+            "UPDATE reservations SET partner_settled_at = NOW()
+             WHERE id IN ($placeholders) AND status_id = 10 AND partner_settled_at IS NULL"
+        );
+        $stmt->execute($ids);
+        return $stmt->rowCount();
+    }
+
+    /** @var bool|null Whether reservations.sold_by_user_id exists (database/migrate_partner_role.sql) */
+    private static ?bool $sellerColumns = null;
+
+    /**
+     * Whether the seller/settlement columns exist (sold_by_user_id, partner_settled_at).
+     * Until the migration has run the seller is simply not stored and the partner role
+     * is not offered (see Permission::partnerRoleAvailable()).
+     */
+    public function hasSellerColumns(): bool
+    {
+        if (self::$sellerColumns === null) {
+            self::$sellerColumns = (bool)$this->db->query("SHOW COLUMNS FROM reservations LIKE 'partner_settled_at'")->fetch();
+        }
+        return self::$sellerColumns;
+    }
+
     /** @var bool|null Whether reservations.discount_percent exists (database/migrate_discounts.sql) */
     private static ?bool $discountColumns = null;
 

@@ -15,6 +15,7 @@ Dieses Handbuch beschreibt alle Funktionen des Vorverkauf-Bereichs für das Verk
 7. [Kasse (Abendkasse)](#7-kasse-abendkasse)
 8. [Gutscheine](#8-gutscheine)
 9. [Dokumentation](#9-dokumentation)
+10. [Externe Partner](#10-externe-partner)
 
 ---
 
@@ -205,7 +206,7 @@ Im Umbuchen-Dialog gibt es das Häkchen **„Kunde per E-Mail benachrichtigen"**
 | Bezahlt & Abgeholt | Reservierung an der Abendkasse bezahlt und abgeholt |
 | Gedruckt (Abendkasse) | An der Abendkasse als Ticket gedruckt |
 | VIP | VIP-Karte (kostenlos, vom Admin ausgestellt) |
-| FN-Karte | FN-Card-Vergünstigung |
+| Barverkauf Partner | Von einem externen Partner bar verkauft, das Geld wird mit dem Veranstalter abgerechnet |
 | PayPal gestartet | PayPal-Vorgang läuft (Zwischenzustand) |
 | FEHLER | Technischer Fehler – bitte Admin informieren |
 
@@ -291,6 +292,26 @@ Jeder Gutschein erhält automatisch einen eindeutigen Code.
 ## 9. Dokumentation
 
 Eigener Menüpunkt **Dokumentation** in der Sidebar. Hier ist das Vorverkauf-Handbuch als PDF zum Anzeigen oder Herunterladen hinterlegt.
+
+---
+
+## 10. Externe Partner
+
+Dieser Abschnitt richtet sich an **externe Verkaufsstellen** mit eigenem Partner-Zugang. Welche Funktionen Sie sehen, legt der Veranstalter fest. Fehlt ein hier beschriebener Punkt in Ihrem Menü, ist er für Ihren Zugang nicht freigeschaltet.
+
+**Anmelden:** auf der normalen Login-Seite mit Ihren Zugangsdaten. Sie landen auf der **Übersicht** mit *Heute verkauft* und *Noch abzurechnen (Bargeld)*.
+
+**Karten bar verkaufen:**
+1. *Karten verkaufen* → Veranstaltung und Termin wählen. Es erscheinen nur Veranstaltungen, für die Sie verkaufen dürfen.
+2. Plätze im Sitzplan wählen → *Weiter*.
+3. Preisart je Platz wählen, falls freigeschaltet (sonst gilt der Normalpreis). Bestellart **Kaufen** und Zahlungsart **Barverkauf** (ohne Kundendaten) oder **Mit Kundendaten** wählen.
+4. *Bestellung abschließen* → Betrag bar kassieren → **Tickets drucken** und dem Kunden geben.
+
+**Reservieren** (falls freigeschaltet): wie oben, aber Bestellart **Reservieren** mit Kundendaten. Der Kunde bezahlt und holt die Karten beim Veranstalter bzw. an der Abendkasse ab, nicht bei Ihnen.
+
+**Meine Verkäufe:** alle eigenen Verkäufe im gewählten Zeitraum mit Betrag und Abrechnungsstand. Über das Drucker-Symbol lassen sich Tickets erneut drucken. Mit der Funktion *Eigene Verkäufe stornieren* gibt es außerdem ein Storno-Symbol. Es funktioniert nur, solange der Verkauf **noch nicht abgerechnet** ist.
+
+**Abrechnen:** Die Kachel *Noch abzurechnen* zeigt das Bargeld aus Ihren Barverkäufen, das Sie dem Veranstalter noch schulden. Nach der Übergabe markiert der Veranstalter die Verkäufe als abgerechnet. Danach stehen sie in *Meine Verkäufe* als „abgerechnet".
 
 ---
 

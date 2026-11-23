@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../app/bootstrap.php';
 
 use App\Core\Auth;
 use App\Core\Database;
+use App\Helpers\PartnerPermissionForm;
 use App\Models\User;
 use App\Models\DeviceToken;
 
@@ -85,18 +86,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new \Exception('Dieser Benutzername existiert bereits.');
             }
 
-            if (!empty($_POST['email'])) {
-                $stmt          = $db->query("SELECT id FROM users WHERE email = :email AND id != :id", [':email' => $_POST['email'], ':id' => $userId]);
-                $existingEmail = $stmt->fetch();
-                if ($existingEmail) {
-                    throw new \Exception('Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet.');
-                }
-            }
+            $userModel->validateEmail($_POST['email'] ?? '', $userId);
+
+            $role = PartnerPermissionForm::postedRole($user['role']);
+            $partnerPermissions = $role === 'partner' ? PartnerPermissionForm::fromPost() : null;
 
             $data = [
                 'username' => $_POST['username'],
-                'email'    => $_POST['email'],
-                'role'     => $_POST['role'],
+                'email'    => $_POST['email'] ?? '',
+                'role'     => $role,
                 'active'   => isset($_POST['active']) ? 1 : 0,
             ];
 
@@ -105,6 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $userModel->update($userId, $data);
+            // Permissions only apply to partners; other roles get none stored
+            $userModel->setPartnerPermissions($userId, $partnerPermissions);
 
             header('Location: ' . url('admin/users.php'));
             exit;
@@ -294,11 +294,9 @@ $content = '
 
             <div class="mb-3">
                 <label for="role" class="form-label">Rolle</label>
-                <select class="form-select" id="role" name="role">
-                    <option value="presales" ' . (($_POST['role'] ?? $user['role']) == 'presales' ? 'selected' : '') . '>Vorverkauf</option>
-                    <option value="admin" ' . (($_POST['role'] ?? $user['role']) == 'admin' ? 'selected' : '') . '>Administrator</option>
-                </select>
+                ' . PartnerPermissionForm::roleSelect(PartnerPermissionForm::postedRole($user['role'])) . '
             </div>
+            ' . PartnerPermissionForm::render($userModel->getPartnerPermissions($userId), PartnerPermissionForm::postedRole($user['role'])) . '
 
             <div class="mb-3 form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="active" name="active"

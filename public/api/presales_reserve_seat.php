@@ -15,7 +15,7 @@ Session::start();
 
 header('Content-Type: application/json');
 
-if (!Auth::isPresales() && !Auth::isAdmin()) {
+if (!Auth::isSalesStaff() && !Auth::isAdmin()) {
     echo json_encode(['success' => false, 'error' => 'Nicht autorisiert']);
     exit;
 }
@@ -30,6 +30,11 @@ try {
     
     if ($eventId <= 0 || empty($eventDate) || empty($seatIdentifier)) {
         echo json_encode(['success' => false, 'error' => 'Fehlende Daten']);
+        exit;
+    }
+    // External partners only for the events they may sell for
+    if (!\App\Core\Permission::canAccessEvent($eventId)) {
+        echo json_encode(['success' => false, 'error' => 'Für diese Veranstaltung haben Sie keine Berechtigung.']);
         exit;
     }
     

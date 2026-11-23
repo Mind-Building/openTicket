@@ -33,7 +33,7 @@ class ReservationStatusLabelTest extends TestCase
         yield 'printed_box_office'  => [7,  'Gedruckt (Abendkasse)'];
         yield 'paid_voucher'        => [8,  'Bezahlt (Gutschein)'];
         yield 'voucher_redeemed'    => [9,  'Gutschein eingelöst'];
-        yield 'fn_card_presales'    => [10, 'FN-Karte'];
+        yield 'partner_cash'        => [10, 'Barverkauf Partner'];
         yield 'vip'                 => [11, 'VIP'];
         yield 'paypal_started'      => [20, 'PayPal gestartet'];
         yield 'paypal_error'        => [91, 'FEHLER: PayPal ohne Kundendaten'];

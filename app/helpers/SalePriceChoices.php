@@ -30,7 +30,7 @@ class SalePriceChoices
             $label = !empty($seat['label'])
                 ? $seat['label']
                 : $seatPlanModel->getSeatDisplayName($eventId, (string)($seat['id'] ?? ''));
-            $choices = TicketPrice::choices($seat, $eventId, $eventDate, true);
+            $choices = self::choices($seat, $eventId, $eventDate);
 
             if (empty($choices)) {
                 // Wheelchair companion: always free, nothing to choose
@@ -114,11 +114,21 @@ class SalePriceChoices
     {
         $seats = self::normalize($seats);
         $fnCardUses = []; // FN card number => seats of this order using it
+        $priceTypesAllowed = self::priceTypesAllowed();
         foreach ($seats as $index => $seat) {
             if (!isset($postedTypes[$index])) {
+                if (!$priceTypesAllowed) {
+                    // Never trust price flags from the seats JSON when only the normal price is allowed
+                    $seat['is_reduced'] = 0;
+                    $seat['is_fn_card'] = 0;
+                    $seat['fn_card_number'] = null;
+                    $seat['discount_label'] = null;
+                    $seat['discount_percent'] = null;
+                    $seats[$index] = $seat;
+                }
                 continue;
             }
-            $choices = TicketPrice::choices($seat, $eventId, $eventDate, true);
+            $choices = self::choices($seat, $eventId, $eventDate);
             $type = isset($choices[$postedTypes[$index]]) ? (string)$postedTypes[$index] : null;
             $seat['is_reduced'] = $type === TicketPrice::TYPE_REDUCED ? 1 : 0;
             $seat['is_fn_card'] = $type === TicketPrice::TYPE_FN_CARD ? 1 : 0;
@@ -150,6 +160,26 @@ class SalePriceChoices
             }
         }
         return $seats;
+    }
+
+    /**
+     * Price types offered for a seat. Without the "Preisarten" permission (external partners,
+     * see App\Core\Permission) only the default price (first entry) is offered.
+     */
+    private static function choices(array $seat, int $eventId, string $eventDate): array
+    {
+        $choices = TicketPrice::choices($seat, $eventId, $eventDate, true);
+        if (!self::priceTypesAllowed() && count($choices) > 1) {
+            $first = array_key_first($choices);
+            return [$first => $choices[$first]];
+        }
+        return $choices;
+    }
+
+    private static function priceTypesAllowed(): bool
+    {
+        // Only external partners are restricted; admin, presales (and CLI/tests) keep all types
+        return !\App\Core\Auth::isPartner() || \App\Core\Permission::can(\App\Core\Permission::PRICE_TYPES);
     }
 
     /**

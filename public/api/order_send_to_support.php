@@ -72,7 +72,7 @@ try {
     $idsParam = implode(',', $allIds);
 
     // Statuses that get a ticket email (paid) / reservation confirmation
-    $ticketStatuses      = [2, 4, 5, 8];
+    $ticketStatuses      = [2, 4, 5, 8, 10]; // 10 = Barverkauf Partner
     $reservationStatuses = [3, 6];
 
     if ($statusId === 11) {

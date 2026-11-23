@@ -745,7 +745,7 @@ class EmailService
         $statusId     = (int)$reservation['status_id'];
 
         // Statuses that get a ticket email (paid) resp. a reservation confirmation
-        $ticketStatuses      = [2, 4, 5, 8];
+        $ticketStatuses      = [2, 4, 5, 8, 10]; // 10 = Barverkauf Partner
         $reservationStatuses = [3, 6];
 
         $allIds   = array_column($groupReservations, 'id');

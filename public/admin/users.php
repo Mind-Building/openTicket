@@ -60,7 +60,11 @@ if (empty($users)) {
     $content .= '<tr><td colspan="7" class="text-center text-muted">Keine Benutzer gefunden.</td></tr>';
 } else {
     foreach ($users as $user) {
-        $roleLabel = $user['role'] === 'admin' ? '<span class="badge bg-danger">Admin</span>' : '<span class="badge bg-info">Vorverkauf</span>';
+        $roleLabel = match ($user['role']) {
+            'admin'   => '<span class="badge bg-danger">Admin</span>',
+            'partner' => '<span class="badge bg-warning text-dark">Externer Partner</span>',
+            default   => '<span class="badge bg-info">Vorverkauf</span>',
+        };
         $activeLabel = $user['active'] ? '<span class="badge bg-success">Aktiv</span>' : '<span class="badge bg-secondary">Inaktiv</span>';
         $createdAt = date('d.m.Y H:i', strtotime($user['created_at']));
         

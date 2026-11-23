@@ -304,12 +304,12 @@ if ($eventId > 0 && !empty($categories) && !empty($eventDates)) {
 
         // Money columns: split into reserved (potential), paid (real), vip (sponsored, no income)
         // Reservierungen (potentielle Einnahmen): status 3, 6
-        // Bezahlt (reale Einnahmen): PayPal (2), Vorverkauf bezahlt (4), Barzahlung (5)
+        // Bezahlt (reale Einnahmen): PayPal (2), Vorverkauf bezahlt (4), Barzahlung (5), Barverkauf Partner (10)
         // VIP (gesponsert, keine Einnahmen): status 11 – Wert wird nur informativ angezeigt
         // Ausgeschlossen: Gutschein-bezahlt (8 – Einnahmen bereits im Gutschein-Abschnitt erfasst)
         $moneyGroups = [
             'reserved' => [3, 6],
-            'paid'     => [2, 4, 5],
+            'paid'     => [2, 4, 5, 10],
             'vip'      => [11],
         ];
         $groupSums = ['reserved' => [], 'paid' => [], 'vip' => []];

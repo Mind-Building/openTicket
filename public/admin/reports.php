@@ -67,7 +67,24 @@ $content = '
                 </a>
             </div>
         </div>
-    </div>
+    </div>' . (\App\Core\Permission::partnerRoleAvailable() ? '
+
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-cash-coin"></i> Abrechnung Partner
+                </h5>
+                <p class="card-text">
+                    Barverkäufe der externen Partner je Partner und Zeitraum: offenes Bargeld,
+                    bereits abgerechnete Verkäufe, „Als abgerechnet markieren“ und CSV-Export.
+                </p>
+                <a href="' . url('admin/reports_partners.php') . '" class="btn btn-primary">
+                    <i class="bi bi-arrow-right"></i> Zur Partner-Abrechnung
+                </a>
+            </div>
+        </div>
+    </div>' : '') . '
 </div>
 ';
 

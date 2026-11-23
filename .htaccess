@@ -15,7 +15,7 @@ RewriteRule .* - [F,L]
 # WICHTIG: Pfad anpassen je nach Deployment-Umgebung
 # Lokal (XAMPP Unterverzeichnis):  RewriteBase /ticket2.0/
 # Produktion (Root-Domain):        RewriteBase /
-RewriteBase /ticket2.0/
+RewriteBase /openTicket/
 
 # Verhindere direkten Zugriff auf sensible Verzeichnisse
 RewriteRule ^(app|database|logging|storage|tests|vendor|docs)(/.*)?$ - [F,L]

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../app/bootstrap.php';
 
 use App\Core\Auth;
+use App\Core\Permission;
 use App\Core\Session;
 use App\Core\Config;
 use App\Models\Event;
@@ -12,8 +13,20 @@ use App\Models\Customer;
 use App\Models\Voucher;
 use App\Services\EmailService;
 
-Auth::requirePresales();
+Auth::requireSalesStaff();
 Session::start();
+
+// External partners: which order types / payment types this user may use (presales: all)
+$canBuyCash     = Permission::can(Permission::SELL_CASH);
+$canBuyCustomer = Permission::can(Permission::SELL_CUSTOMER);
+$canVoucher     = Permission::can(Permission::VOUCHER_REDEEM);
+$canBuy         = $canBuyCash || $canBuyCustomer || $canVoucher;
+$canReserve     = Permission::can(Permission::RESERVE);
+$canCustomerSearch = Permission::can(Permission::CUSTOMERS);
+if (!$canBuy && !$canReserve) {
+    Permission::deny();
+}
+$isPartner = Auth::isPartner();
 
 $eventModel = new Event();
 $seatPlanModel = new SeatPlan();
@@ -27,8 +40,19 @@ $eventId = (int)($_GET['event_id'] ?? 0);
 $eventDate = $_GET['date'] ?? '';
 $selectedSeatsJson = $_GET['seats'] ?? '';
 
-$events = $eventModel->getAll(false); // Presales: show all events, including inactive
+// Presales: show all events, including inactive. External partners: only active, not finished
+// events they are allowed to sell for.
+$events = $isPartner
+    ? Permission::filterEvents($eventModel->getAll(true, true))
+    : $eventModel->getAll(false);
 $activeEventsCount = count($events);
+
+// An event id from the URL that the partner may not sell for is ignored
+if ($eventId > 0 && !Permission::canAccessEvent($eventId)) {
+    $eventId = 0;
+    $eventDate = '';
+    $step = 'event';
+}
 
 // If only one event is active, auto-select it
 if ($activeEventsCount === 1 && $eventId === 0) {
@@ -127,10 +151,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $eventId = (int)$_POST['event_id'];
             $eventDate = $_POST['event_date'];
+            if (!Permission::canAccessEvent($eventId)) {
+                throw new \Exception('Für diese Veranstaltung haben Sie keine Berechtigung.');
+            }
 
             // Price type per seat chosen in step 3 (validated against what is allowed for the seat)
             $selectedSeats = \App\Helpers\SalePriceChoices::apply($selectedSeats, (array)($_POST['price_type'] ?? []), $eventId, $eventDate, (array)($_POST['fn_card_number'] ?? []));
             
+            // Companions are free: never trust the flag from the browser alone – at most one
+            // companion per wheelchair seat of this order (wheelchair seats: "wheelchair_ROW_SEAT")
+            $wheelchairCount = 0;
+            $companionCount = 0;
+            foreach ($selectedSeats as $seatCheck) {
+                if (!empty($seatCheck['is_companion'])) {
+                    $companionCount++;
+                } elseif (str_starts_with((string)($seatCheck['id'] ?? ''), 'wheelchair_')) {
+                    $wheelchairCount++;
+                }
+            }
+            if ($companionCount > $wheelchairCount) {
+                throw new \Exception('Begleitpersonen (kostenfrei) sind nur zusammen mit einem Rollstuhlplatz möglich.');
+            }
+
             // Check if event date is in the past (presales can book even after deadline, but not past dates)
             $today = date('Y-m-d');
             if ($eventDate < $today) {
@@ -159,12 +201,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderType = $_POST['order_type'] ?? 'buy'; // 'buy' or 'reserve'
             $paymentType = $_POST['payment_type'] ?? 'cash'; // 'cash', 'customer', or 'voucher'
             $customerId = null;
-            $statusId = 4; // Default: Bezahlt (Vorverkauf)
+            // Default: Bezahlt (Vorverkauf). External partner: Barverkauf Partner (status 10) –
+            // the cash is with the partner until it is settled (admin report "Abrechnung Partner").
+            $statusId = $isPartner ? 10 : 4;
             $redeemedVoucherId = null;
 
             if ($orderType === 'reserve') {
                 $statusId = 3; // Reserviert (Vorverkauf)
                 $paymentType = 'customer'; // Reservierungen benötigen immer Kundendaten
+            }
+
+            // Server-side permission check of what was posted (the form only shows allowed options)
+            $allowedChoice = match (true) {
+                $orderType === 'reserve'     => $canReserve,
+                $orderType !== 'buy'         => false,
+                $paymentType === 'cash'      => $canBuyCash,
+                $paymentType === 'customer'  => $canBuyCustomer,
+                $paymentType === 'voucher'   => $canVoucher,
+                default                      => false,
+            };
+            if (!$allowedChoice) {
+                throw new \Exception('Diese Bestellart bzw. Zahlungsart ist für Ihren Zugang nicht freigegeben.');
+            }
+            if ($paymentType === 'voucher') {
+                // A redeemed voucher is already paid – it is not partner cash
+                $statusId = 8;
             }
 
             // Handle voucher payment
@@ -287,6 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_honor_card' => 0,
                         'is_companion' => $isCompanion ? 1 : 0,
                         'voucher_id' => $redeemedVoucherId,
+                        'sold_by_user_id' => Auth::id(),
                     ]);
                     $createdCount++;
                 } catch (\Exception $e) {
@@ -404,8 +466,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($emailEnabled && $customerId && !empty($customerEmail) && !empty($reservationIds)) {
                     try {
                         $emailService = new EmailService();
-                        if ($statusId === 4) {
-                            // Bezahlt (Vorverkauf) – Bestätigungsmail OHNE Download-Link senden
+                        if ($statusId === 4 || $statusId === 10) {
+                            // Bezahlt (Vorverkauf / Partner) – Bestätigungsmail OHNE Download-Link senden
                             $presalesReservations = [];
                             foreach ($reservationIds as $resId) {
                                 $resDetail = $reservationModel->getById((int)$resId);
@@ -587,7 +649,7 @@ $showHeader = true;
 $content = '
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Verkauf / Reservierung</h2>
-    <a href="' . url('presales/reservations.php') . '" class="btn btn-outline-secondary">
+    <a href="' . url(Permission::can(Permission::OWN_ORDERS) ? 'presales/reservations.php' : 'presales/') . '" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Zurück
     </a>
 </div>';
@@ -1055,6 +1117,65 @@ elseif ($step === 'seats' && $eventId > 0 && !empty($eventDate)) {
 
 // Step 3: Payment/Reservation Selection
 elseif ($step === 'payment' && !empty($selectedSeats)) {
+    // Only the order/payment types this user may use (external partners, see Permission)
+    $defaultOrder = $canBuy ? 'buy' : 'reserve';
+    $defaultPayment = $canBuyCash ? 'cash' : ($canBuyCustomer ? 'customer' : 'voucher');
+    $orderTypeHtml = '';
+    if ($canBuy) {
+        $orderTypeHtml .= '
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="order_type" id="order_buy" value="buy"' . ($defaultOrder === 'buy' ? ' checked' : '') . ' onchange="togglePaymentOptions()">
+                        <label class="form-check-label" for="order_buy">
+                            <strong>Kaufen</strong>' . ($isPartner ? ' <small class="text-muted">(Barzahlung beim Partner)</small>' : '') . '
+                        </label>
+                    </div>';
+    }
+    if ($canReserve) {
+        $orderTypeHtml .= '
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="order_type" id="order_reserve" value="reserve"' . ($defaultOrder === 'reserve' ? ' checked' : '') . ' onchange="togglePaymentOptions()">
+                        <label class="form-check-label" for="order_reserve">
+                            <strong>Reservieren</strong>
+                        </label>
+                    </div>';
+    }
+    $paymentHtml = '';
+    if ($canBuyCash) {
+        $paymentHtml .= '
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="payment_type" id="payment_cash" value="cash"' . ($defaultPayment === 'cash' ? ' checked' : '') . ' onchange="toggleCustomerForm()">
+                        <label class="form-check-label" for="payment_cash">
+                            <strong>Barverkauf</strong> (keine Kundendaten erforderlich)
+                        </label>
+                    </div>';
+    }
+    // The customer radio also carries reservations (always with customer data), so it is
+    // rendered – hidden – when only reserving is allowed.
+    if ($canBuyCustomer || $canReserve) {
+        $paymentHtml .= '
+                    <div class="form-check mb-2"' . ($canBuyCustomer ? '' : ' style="display:none"') . '>
+                        <input class="form-check-input" type="radio" name="payment_type" id="payment_customer" value="customer"' . ($defaultPayment === 'customer' && $canBuyCustomer ? ' checked' : '') . ' onchange="toggleCustomerForm()">
+                        <label class="form-check-label" for="payment_customer">
+                            <strong>Mit Kundendaten</strong>' . ($isPartner ? ' (Barzahlung)' : '') . '
+                        </label>
+                    </div>';
+    }
+    if ($canVoucher) {
+        $paymentHtml .= '
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="payment_type" id="payment_voucher" value="voucher"' . ($defaultPayment === 'voucher' ? ' checked' : '') . ' onchange="toggleCustomerForm()">
+                        <label class="form-check-label" for="payment_voucher">
+                            <strong>Gutschein</strong>
+                        </label>
+                    </div>';
+    }
+    $customerSearchHtml = $canCustomerSearch ? '
+                    <div class="mb-3 position-relative">
+                        <label for="customer-search" class="form-label"><i class="bi bi-search"></i> Kunde suchen</label>
+                        <input type="text" class="form-control" id="customer-search" placeholder="Name oder E-Mail eingeben..." autocomplete="off">
+                        <div id="customer-search-results" class="list-group shadow-sm position-absolute w-100" style="z-index: 1050; display: none; max-height: 320px; overflow-y: auto;"></div>
+                    </div>' : '';
+
     $content .= '
     <div class="card">
         <div class="card-header">
@@ -1069,41 +1190,11 @@ elseif ($step === 'payment' && !empty($selectedSeats)) {
                 ' . \App\Helpers\SalePriceChoices::render($selectedSeats, $eventId, $eventDate) . '
                 
                 <div class="mb-4">
-                    <label class="form-label"><strong>Bestellart:</strong></label>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="radio" name="order_type" id="order_buy" value="buy" checked onchange="togglePaymentOptions()">
-                        <label class="form-check-label" for="order_buy">
-                            <strong>Kaufen</strong>
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="order_type" id="order_reserve" value="reserve" onchange="togglePaymentOptions()">
-                        <label class="form-check-label" for="order_reserve">
-                            <strong>Reservieren</strong>
-                        </label>
-                    </div>
+                    <label class="form-label"><strong>Bestellart:</strong></label>' . $orderTypeHtml . '
                 </div>
-                
+
                 <div id="payment-options" class="mb-4">
-                    <label class="form-label"><strong>Zahlungsart:</strong></label>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="radio" name="payment_type" id="payment_cash" value="cash" checked onchange="toggleCustomerForm()">
-                        <label class="form-check-label" for="payment_cash">
-                            <strong>Barverkauf</strong> (keine Kundendaten erforderlich)
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="radio" name="payment_type" id="payment_customer" value="customer" onchange="toggleCustomerForm()">
-                        <label class="form-check-label" for="payment_customer">
-                            <strong>Mit Kundendaten</strong>
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="payment_type" id="payment_voucher" value="voucher" onchange="toggleCustomerForm()">
-                        <label class="form-check-label" for="payment_voucher">
-                            <strong>Gutschein</strong>
-                        </label>
-                    </div>
+                    <label class="form-label"><strong>Zahlungsart:</strong></label>' . $paymentHtml . '
                 </div>
 
                 <div id="voucher-form" style="display: none;" class="mb-4">
@@ -1116,12 +1207,7 @@ elseif ($step === 'payment' && !empty($selectedSeats)) {
                     <small class="text-muted">Der Gutschein wird sofort als eingelöst markiert.</small>
                 </div>
                 
-                <div id="customer-form" style="display: none;">
-                    <div class="mb-3 position-relative">
-                        <label for="customer-search" class="form-label"><i class="bi bi-search"></i> Kunde suchen</label>
-                        <input type="text" class="form-control" id="customer-search" placeholder="Name oder E-Mail eingeben..." autocomplete="off">
-                        <div id="customer-search-results" class="list-group shadow-sm position-absolute w-100" style="z-index: 1050; display: none; max-height: 320px; overflow-y: auto;"></div>
-                    </div>
+                <div id="customer-form" style="display: none;">' . $customerSearchHtml . '
                     <h6 class="mb-3">Kundendaten</h6>
                     <div class="row">
                         <div class="col-md-3 mb-3">
@@ -1780,7 +1866,8 @@ function togglePaymentOptions() {
 
     if (orderType === "reserve") {
         paymentOptions.style.display = "none";
-        document.getElementById("payment_customer").checked = true;
+        const customerRadio = document.getElementById("payment_customer");
+        if (customerRadio) customerRadio.checked = true;
         document.getElementById("customer-form").style.display = "block";
         setCustomerFieldsRequired(true);
     } else {

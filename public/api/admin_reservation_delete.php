@@ -76,6 +76,10 @@ try {
         'admin_user_id'    => $_SESSION['user_id'] ?? null,
     ]);
 
+    // Give the customer session whose cart was deleted a visible end in the customer log.
+    $adminUserId = isset($_SESSION['user_id']) ? (string)$_SESSION['user_id'] : null;
+    LoggerService::logCartRowsDeletedByStaff($reservationsToDelete, 'admin_deleted', $adminUserId);
+
     echo json_encode([
         'success'       => true,
         'message'       => $deletedCount . ' Reservierung(en) wurde(n) gelöscht',

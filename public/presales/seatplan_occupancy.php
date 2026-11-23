@@ -8,7 +8,9 @@ use App\Models\SeatPlan;
 use App\Models\SeatCategory;
 use App\Models\Reservation;
 
-Auth::requirePresales();
+Auth::requireSalesStaff();
+\App\Core\Permission::require(\App\Core\Permission::OCCUPANCY);
+$isPartner = Auth::isPartner();
 
 $eventModel       = new Event();
 $seatPlanModel    = new SeatPlan();
@@ -18,7 +20,13 @@ $reservationModel = new Reservation();
 $eventId   = (int)($_GET['event_id'] ?? 0);
 $eventDate = $_GET['date'] ?? '';
 
-$events     = $eventModel->getAll(false); // include inactive for presales
+// include inactive for presales; external partners: only active events they may sell for
+$events     = $isPartner
+    ? \App\Core\Permission::filterEvents($eventModel->getAll(true, true))
+    : $eventModel->getAll(false);
+if ($eventId && !\App\Core\Permission::canAccessEvent($eventId)) {
+    $eventId = 0;
+}
 $event      = $eventId ? $eventModel->getById($eventId) : null;
 $eventDates = $eventId ? $eventModel->getDates($eventId) : [];
 
@@ -29,6 +37,16 @@ if ($event && $eventDate) {
     $seatPlan      = $seatPlanModel->getSeatPlanStructure($eventId);
     $categories    = $categoryModel->getByEvent($eventId);
     $reservedSeats = $reservationModel->getReservedSeatsWithDetails($eventId, $eventDate);
+    // External partners without "Kundensuche" do not see who booked a seat
+    if ($isPartner && !\App\Core\Permission::can(\App\Core\Permission::CUSTOMERS)) {
+        foreach ($reservedSeats as $k => $r) {
+            if (is_array($r)) {
+                $reservedSeats[$k]['first_name'] = '';
+                $reservedSeats[$k]['last_name'] = '';
+                $reservedSeats[$k]['email'] = '';
+            }
+        }
+    }
 }
 
 $pageTitle   = 'Sitzplan-Belegung';

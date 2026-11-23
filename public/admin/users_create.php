@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../app/bootstrap.php';
 
 use App\Core\Auth;
+use App\Helpers\PartnerPermissionForm;
 use App\Models\User;
 
 Auth::requireAdmin();
@@ -29,15 +30,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($existing) {
             throw new \Exception('Dieser Benutzername existiert bereits.');
         }
-        
-        $userModel->create([
+        $userModel->validateEmail($_POST['email'] ?? '');
+
+        $role = PartnerPermissionForm::postedRole();
+        $partnerPermissions = $role === 'partner' ? PartnerPermissionForm::fromPost() : null;
+
+        $newUserId = $userModel->create([
             'username' => $_POST['username'],
-            'email' => $_POST['email'],
+            'email' => $_POST['email'] ?? '',
             'password' => $_POST['password'],
-            'role' => $_POST['role'] ?? 'presales',
+            'role' => $role,
             'active' => isset($_POST['active']) ? 1 : 0,
         ]);
-        
+        if ($partnerPermissions !== null) {
+            $userModel->setPartnerPermissions($newUserId, $partnerPermissions);
+        }
+
         header('Location: ' . url('admin/users.php'));
         exit;
     } catch (\Exception $e) {
@@ -79,12 +87,10 @@ $content = '
             
             <div class="mb-3">
                 <label for="role" class="form-label">Rolle</label>
-                <select class="form-select" id="role" name="role">
-                    <option value="presales" ' . (($_POST['role'] ?? 'presales') == 'presales' ? 'selected' : '') . '>Vorverkauf</option>
-                    <option value="admin" ' . (($_POST['role'] ?? '') == 'admin' ? 'selected' : '') . '>Administrator</option>
-                </select>
+                ' . PartnerPermissionForm::roleSelect(PartnerPermissionForm::postedRole()) . '
             </div>
-            
+            ' . PartnerPermissionForm::render(null, PartnerPermissionForm::postedRole()) . '
+
             <div class="mb-3 form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="active" name="active" checked>
                 <label class="form-check-label" for="active">Aktiv</label>

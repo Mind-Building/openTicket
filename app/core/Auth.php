@@ -43,6 +43,14 @@ class Auth
         $hashToVerify = $user['password_hash'] ?? self::DUMMY_PASSWORD_HASH;
         $passwordOk   = password_verify($password, $hashToVerify);
 
+        // External partners can only log in while the installation uses the role.
+        if ($user && $passwordOk && $user['role'] === 'partner' && !Permission::partnerRoleActive()) {
+            if (function_exists('logPartnerLogin')) {
+                logPartnerLogin((string)$user['id'], $username, false, 'partner_role_inactive');
+            }
+            return false;
+        }
+
         if ($user && $passwordOk) {
             Session::regenerate();
             
@@ -88,7 +96,7 @@ class Auth
         $role = self::role();
         if ($role === 'admin') {
             return \App\Helpers\UrlHelper::url('admin/');
-        } elseif ($role === 'presales') {
+        } elseif ($role === 'presales' || $role === 'partner') {
             return \App\Helpers\UrlHelper::url('presales/');
         }
         return \App\Helpers\UrlHelper::url('');
@@ -174,6 +182,23 @@ class Auth
     }
 
     /**
+     * Check if user is an external partner (role "partner") and the installation uses the role
+     */
+    public static function isPartner(): bool
+    {
+        return self::hasRole('partner') && Permission::partnerRoleActive();
+    }
+
+    /**
+     * Presales or (active) external partner – the roles that work in /presales/.
+     * What a partner may do there is decided by Permission::can().
+     */
+    public static function isSalesStaff(): bool
+    {
+        return self::isPresales() || self::isPartner();
+    }
+
+    /**
      * Require authentication (redirect if not logged in)
      */
     public static function requireAuth(): void
@@ -214,6 +239,21 @@ class Auth
     {
         self::authenticateViaDeviceToken();
         self::requireRole('presales');
+    }
+
+    /**
+     * Require presales or an active external partner (pages partners may use).
+     * Combine with Permission::require() for the feature the page offers.
+     */
+    public static function requireSalesStaff(): void
+    {
+        self::authenticateViaDeviceToken();
+        self::requireAuth();
+        if (!self::isSalesStaff()) {
+            $url = \App\Helpers\UrlHelper::url('');
+            header('Location: ' . $url);
+            exit;
+        }
     }
 
     /**

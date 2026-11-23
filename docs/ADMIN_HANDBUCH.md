@@ -376,6 +376,12 @@ Die Bereinigung läuft außerdem automatisch in folgenden Situationen:
 - Vor dem Versand des täglichen Berichts (Tagesbericht per E-Mail)
 - Per **Cron-Job alle 5 Minuten** (`app/scripts/cleanup_expired_reservations.php`)
 
+**Cron-Job einrichten:** Beim Hoster unter „Cronjobs“ alle 5 Minuten eintragen:
+- **Als Befehl/PHP-Skript** (bevorzugt): `php /pfad/zur/installation/app/scripts/cleanup_expired_reservations.php`
+- **Als URL**, wenn der Hoster nur URL-Cronjobs kann: `https://domain.de/cron_cleanup.php?secret=GEHEIMWORT`. Das Geheimwort steht in der `.env` als `CRON_SECRET` (z. B. mit `php -r "echo bin2hex(random_bytes(16));"` erzeugen). Ohne `CRON_SECRET` ist der URL-Aufruf abgeschaltet. Die Antwort ist JSON mit Statuscode 200 (ok), 403 (falsches Geheimwort) oder 500 (Fehler, Details im Admin-Log als `cron_cleanup_error`).
+
+Die Adresse `…/app/scripts/cleanup_expired_reservations.php` ist im Browser absichtlich gesperrt (403).
+
 **Was wird bereinigt:**
 - **Reservierungen** mit Status *Im Warenkorb* älter als 20 Min. → Sitzplätze werden freigegeben
 - **Gutscheine** mit Status *Im Warenkorb* älter als 20 Min.:
@@ -642,6 +648,18 @@ Ein **Datum-Badge** markiert Umbuchungen, bei denen sich der Termin geändert ha
 
 > **Hinweis:** Umbuchungen werden ab Einführung dieser Funktion automatisch protokolliert. Bereits zuvor erfolgte Umbuchungen lassen sich einmalig aus den Logdateien nachladen — direkt auf dieser Seite unter **Wartung: Historie aus Logdateien nachladen** (Button *Vorschau* zeigt nur an, *Jetzt nachladen* übernimmt sie). Die Aktion ist gefahrlos wiederholbar; bereits vorhandene Einträge werden übersprungen. Alternativ per Kommandozeile: `php app/scripts/backfill_rebookings.php`.
 
+### 11.5 Abrechnung Partner
+
+Unter *Auswertungen → Abrechnung Partner* (`admin/reports_partners.php`) stehen die **Barverkäufe der externen Partner** (Status „Barverkauf Partner"). Das Bargeld liegt beim Partner, bis es mit Ihnen abgerechnet ist.
+
+- **Kacheln oben:** offenes Bargeld je Partner (Summe und Anzahl Karten). Ein Klick filtert auf diesen Partner.
+- **Filter:** Partner, Verkaufszeitraum, Abrechnung *Offen / Abgerechnet / Alle*.
+- **Tabelle:** Partner, Verkaufszeitpunkt, Veranstaltung und Termin, Plätze, Kunde (falls erfasst), Betrag, Abrechnungsstand.
+- **Als abgerechnet markieren:** Offene Verkäufe anhaken (oder alle über die Kopfzeile), die Summe der Auswahl wird angezeigt. Nach der Bestätigung gilt das Bargeld als erhalten. Abgerechnete Verkäufe kann der Partner nicht mehr stornieren. Jede Abrechnung wird im Admin-Log als `partner_settlement` protokolliert (Karten, Betrag, je Partner).
+- **CSV-Export** (Symbol neben *Anzeigen*): die aktuelle Auswahl für Excel (Semikolon, UTF-8).
+
+Die Preise werden nach derselben Regel berechnet wie auf dem Ticket (Normalpreis, ggf. Ermäßigung/FN-Card/Rabatt).
+
 ---
 
 ## 12. System-Logs
@@ -737,7 +755,7 @@ Wurde für dieselbe Bestellung später ein erfolgreicher Versand geloggt (z. B. 
 
 ### 13.1 Benutzerliste
 
-Alle System-Benutzer (Admin & Vorverkauf) mit:
+Alle System-Benutzer (Admin, Vorverkauf, Externe Partner) mit:
 - Benutzername, E-Mail, Rolle, Status
 
 ### 13.2 Benutzer erstellen
@@ -747,8 +765,37 @@ Alle System-Benutzer (Admin & Vorverkauf) mit:
 | Benutzername | Ja | Eindeutig, wird zum Einloggen verwendet |
 | Passwort | Ja | Min. 8 Zeichen empfohlen |
 | E-Mail | Nein | Kontakt-E-Mail |
-| Rolle | Ja | `admin` oder `presales` |
+| Rolle | Ja | Vorverkauf, Administrator oder Externer Partner |
 | Aktiv | Ja | Inaktive Benutzer können sich nicht einloggen |
+
+### 13.4 Externe Partner
+
+Externe Partner sind Verkaufsstellen außerhalb des eigenen Vorverkaufs, z. B. eine Buchhandlung oder die Tourist-Info. Sie verkaufen bzw. reservieren Karten **gegen Bargeld** über einen eigenen Zugang und rechnen das Geld später mit Ihnen ab. Die Rolle ersetzt den früheren Zugang „FN Card".
+
+**Einrichten:**
+1. *Einstellungen → Funktionen → Externe Partner*: **Rolle aktivieren** und festlegen, welche Funktionen Partner in dieser Installation höchstens haben dürfen (siehe Tabelle).
+2. *Benutzer → Neuen Benutzer erstellen*: Rolle **Externer Partner** wählen. Im Kasten *Rechte des externen Partners* die Funktionen für diesen Partner anhaken. Nur die Funktionen der Installation sind wählbar. Optional **Nur bestimmte Veranstaltungen** einschalten und die Veranstaltungen auswählen.
+3. Zugangsdaten an den Partner geben. Er meldet sich auf der normalen Login-Seite an und landet in seinem Partner-Bereich.
+
+| Funktion | Bedeutung | Standard |
+|---|---|---|
+| Barverkauf ohne Kundendaten | Karten bar verkaufen, ohne Name und Adresse | an |
+| Barverkauf mit Kundendaten | bar verkaufen und Käufer erfassen (Bestätigungsmail möglich) | an |
+| Reservieren | Plätze für einen Kunden reservieren, Bezahlung später an Ihrer Kasse (erscheinen dort wie Vorverkaufs-Reservierungen) | aus |
+| Preisarten | Ermäßigt, FN-Card und Rabatte anbieten, soweit für die Veranstaltung freigegeben. Ohne diese Funktion nur Normalpreis. | an |
+| Gutschein einlösen | Karten gegen Gutscheincode ausgeben | aus |
+| Eigene Verkäufe | eigene Verkäufe ansehen und Tickets nachdrucken | an |
+| Eigene Verkäufe stornieren | eigene, noch **nicht abgerechnete** Verkäufe stornieren | aus |
+| Sitzplan-Belegung | Belegung ansehen (ohne Kundennamen, außer mit „Kundensuche") | aus |
+| Kundensuche | bestehende Kunden im Verkauf suchen und übernehmen (personenbezogene Daten) | aus |
+
+**Was Partner nie sehen:** Admin-Bereich, Reservierungsliste des Vorverkaufs, Kasse/Abendkasse, Gutscheinkiste, Kundenverwaltung und Verkäufe anderer Partner. Alle Rechte werden auch auf dem Server geprüft, nicht nur im Menü.
+
+**Verkäufe:** Ein Barverkauf eines Partners erhält den Status **Barverkauf Partner** und merkt sich den Verkäufer. Abrechnen: siehe [11.5 Abrechnung Partner](#115-abrechnung-partner). Ist die Rolle in den Einstellungen deaktiviert, können sich Partner nicht mehr anmelden. Ihre Verkäufe bleiben erhalten.
+
+**Protokoll:** Partner-Aktionen stehen im Vorverkaufs-Log (`presales.log`) mit dem Zusatz `role: partner`.
+
+> **Hinweis:** Die Rolle braucht das Datenbank-Update `migrate_partner_role.sql` (*Einstellungen → Datenbank-Update*). Vorher wird sie nicht angeboten.
 
 ### 13.3 Benutzer bearbeiten
 

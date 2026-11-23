@@ -14,7 +14,9 @@ Session::start();
 
 header('Content-Type: application/json');
 
-if (!Auth::check() || !in_array(Auth::role(), ['admin', 'presales'])) {
+// External partners only with the "Kundensuche" permission (personal data)
+$partnerAllowed = Auth::isPartner() && \App\Core\Permission::can(\App\Core\Permission::CUSTOMERS);
+if (!Auth::check() || (!in_array(Auth::role(), ['admin', 'presales']) && !$partnerAllowed)) {
     echo json_encode(['success' => false, 'error' => 'Nicht autorisiert']);
     exit;
 }

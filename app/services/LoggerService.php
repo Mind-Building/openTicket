@@ -156,7 +156,33 @@ class LoggerService
 
     public static function logPresales(string $action, array $context = [], string $level = 'info'): void
     {
+        // External partners work in the presales area and log there; mark their entries
+        // so they can be told apart from the presales office.
+        if (!array_key_exists('role', $context) && ($_SESSION['user_role'] ?? null) === 'partner') {
+            $context['role'] = 'partner';
+        }
         self::logToLogger(self::getPresalesLogger(), $action, $context, $level);
+    }
+
+    // External partner logging methods (written to presales.log, see logPresales())
+    public static function logPartnerLogin(string $userId, string $username, bool $success, ?string $reason = null): void
+    {
+        self::logPresales('partner_login', [
+            'user_id' => $userId,
+            'username' => $username,
+            'success' => $success,
+            'reason' => $reason,
+            'role' => 'partner',
+        ], $success ? 'info' : 'warning');
+    }
+
+    public static function logPartnerLogout(string $userId, string $username): void
+    {
+        self::logPresales('partner_logout', [
+            'user_id' => $userId,
+            'username' => $username,
+            'role' => 'partner',
+        ]);
     }
 
     // Customer logging methods
@@ -187,6 +213,28 @@ class LoggerService
             'seats' => $seatIdentifiers,
             'seat_count' => count($seatIdentifiers)
         ]);
+    }
+
+    /**
+     * Log cart rows (status_id = 1) that staff deleted by hand as seats_released in the
+     * customer log, grouped by session + event date. Without this the customer session
+     * just stops in the log: the deletion only appears in the staff log, by ID.
+     * Rows with another status are ignored. $reservations: rows as from Reservation::getById().
+     */
+    public static function logCartRowsDeletedByStaff(array $reservations, string $reason, ?string $userId = null): void
+    {
+        $groups = [];
+        foreach ($reservations as $r) {
+            if ((int)($r['status_id'] ?? 0) !== 1) {
+                continue;
+            }
+            $key = ($r['session_id'] ?? '') . '|' . (int)$r['event_id'] . '|' . $r['event_date'];
+            $groups[$key][] = $r['seat_identifier'];
+        }
+        foreach ($groups as $key => $seats) {
+            [$sessionId, $eventId, $eventDate] = explode('|', $key, 3);
+            self::logSeatsReleased($sessionId, (int)$eventId, $eventDate, $seats, $userId, $reason);
+        }
     }
 
     public static function logSeatsReleased(string $sessionId, int $eventId, string $eventDate, array $seatIdentifiers, ?string $userId = null, string $reason = 'timeout'): void
